@@ -23,7 +23,7 @@ export const Loader: React.FC<LoaderProps> = ({ isLoading }) => {
       <div className="text-center relative">
         <div className="relative">
           <img 
-            src="../assets/images/s-r.png" 
+            src="../assets/images/sr. r.png" 
             alt="Logo" 
             className="w-24 h-24 mx-auto mb-5 animate-glow-scale drop-shadow-2xl"
           />

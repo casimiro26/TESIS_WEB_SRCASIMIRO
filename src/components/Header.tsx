@@ -1,15 +1,15 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Heart, ShoppingCart, User, Menu, X, Sun, Moon } from "lucide-react"
 import { useTheme } from "../context/ThemeContext"
 import { useAuth } from "../context/AuthContext"
 import { useCart } from "../context/CartContext"
-import { categories } from "../data/products"
 import { CartModal } from "./CartModal"
 import { FavoritesModal } from "./FavoritesModal"
 import { OrdersModal } from "./OrdersModal"
+import axios from "axios"
 
 interface HeaderProps {
   onCategoryChange: (category: string) => void
@@ -17,6 +17,12 @@ interface HeaderProps {
   onSearchChange: (term: string) => void
   onShowAuth: (type: "login" | "register") => void
   onShowAdmin: () => void
+}
+
+interface Category {
+  id_categoria: number
+  nombre: string
+  descripcion: string
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,6 +40,50 @@ export const Header: React.FC<HeaderProps> = ({
   const [showCartModal, setShowCartModal] = useState(false)
   const [showFavoritesModal, setShowFavoritesModal] = useState(false)
   const [showOrdersModal, setShowOrdersModal] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
+
+  // Cargar categorías desde la API
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        // TODO: Necesitarás crear un endpoint público para categorías
+        // Por ahora, usaremos categorías estáticas como fallback
+        const defaultCategories = [
+          { id_categoria: 1, nombre: "Laptops", descripcion: "Computadoras portátiles" },
+          { id_categoria: 2, nombre: "Smartphones", descripcion: "Teléfonos inteligentes" },
+          { id_categoria: 3, nombre: "Tablets", descripcion: "Tabletas y iPads" },
+          { id_categoria: 4, nombre: "Accesorios", descripcion: "Accesorios tecnológicos" },
+          { id_categoria: 5, nombre: "Audio", descripcion: "Audio y sonido" },
+          { id_categoria: 6, nombre: "Gaming", descripcion: "Equipos gaming" },
+        ]
+        setCategories(defaultCategories)
+      } catch (error) {
+        console.error("Error loading categories:", error)
+        // Fallback a categorías estáticas
+        const fallbackCategories = [
+          { id_categoria: 1, nombre: "Laptops", descripcion: "" },
+          { id_categoria: 2, nombre: "Smartphones", descripcion: "" },
+          { id_categoria: 3, nombre: "Tablets", descripcion: "" },
+          { id_categoria: 4, nombre: "Accesorios", descripcion: "" },
+          { id_categoria: 5, nombre: "Audio", descripcion: "" },
+          { id_categoria: 6, nombre: "Gaming", descripcion: "" },
+        ]
+        setCategories(fallbackCategories)
+      } finally {
+        setLoadingCategories(false)
+      }
+    }
+
+    loadCategories()
+  }, [])
+
+  // Función para obtener el texto del rol correctamente
+  const getRoleText = (user: any) => {
+    if (user.rol === "superadmin") return "Super Administrador"
+    if (user.rol === "admin") return "Administrador"
+    return "Cliente"
+  }
 
   return (
     <>
@@ -41,8 +91,12 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Top Bar */}
         <div className="bg-gradient-to-r from-red-700 to-red-500 text-white py-2 px-4">
           <div className="max-w-7xl mx-auto flex items-center justify-between text-sm">
-            <div className="flex items-center gap-4"></div>
-            <div className="hidden md:flex items-center gap-4"></div>
+            <div className="flex items-center gap-4">
+              <span>🎁 Envío gratis en compras mayores a $500</span>
+            </div>
+            <div className="hidden md:flex items-center gap-4">
+              <span>📞 Soporte: +1 234 567 890</span>
+            </div>
           </div>
         </div>
 
@@ -51,11 +105,11 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center justify-between gap-4">
             {/* Logo */}
             <div className="flex items-center gap-3 cursor-pointer group">
-              <div className="relative">
+              <div className="relative h-10 w-10 rounded-full overflow-hidden group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300 ease-in-out">
                 <img
-                  src="../assets/images/s-r.png"
+                  src="/../assets/images/s-r.png"
                   alt="Sr. Robot Logo"
-                  className="h-10 w-10 object-contain group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300 ease-in-out"
+                  className="h-full w-full object-cover"
                 />
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
               </div>
@@ -166,7 +220,7 @@ export const Header: React.FC<HeaderProps> = ({
                           <p className="text-sm font-bold text-gray-900 dark:text-white">{user.name}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
                           <p className="text-xs text-red-600 dark:text-red-400 font-medium mt-1">
-                            {user.isAdmin ? "Administrador" : "Cliente"}
+                            {getRoleText(user)}
                           </p>
                         </div>
                       </div>
@@ -248,16 +302,23 @@ export const Header: React.FC<HeaderProps> = ({
                 Todos
                 <span className="absolute bottom-0 left-0 w-full h-0.5 bg-red-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
               </button>
-              {categories.map((category) => (
+              {!loadingCategories && categories.map((category) => (
                 <button
-                  key={category}
-                  onClick={() => onCategoryChange(category)}
+                  key={category.id_categoria}
+                  onClick={() => onCategoryChange(category.nombre)}
                   className="whitespace-nowrap text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 transition-colors duration-300 relative group"
                 >
-                  {category}
+                  {category.nombre}
                   <span className="absolute bottom-0 left-0 w-full h-0.5 bg-red-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
                 </button>
               ))}
+              {loadingCategories && (
+                <div className="flex gap-8">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

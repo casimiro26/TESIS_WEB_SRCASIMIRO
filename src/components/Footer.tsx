@@ -261,7 +261,7 @@ export const Footer: React.FC = () => {
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
           {/* WhatsApp Button */}
           <a
-            href="https://w.app/wdebhf"
+            href="https://wa.me/51975167294"
             target="_blank"
             rel="noopener noreferrer"
             className="block mb-3 bg-green-500 hover:bg-green-600 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110 animate-bounce drop-shadow-[0_0_10px_rgba(34,197,94,0.7)]"
@@ -294,7 +294,7 @@ export const Footer: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-2">
                   <a
-                    href="https://w.app/wdebhf"
+                    href="https://wa.me/51975167294"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-1 hover:bg-green-600 rounded transition-colors drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]"

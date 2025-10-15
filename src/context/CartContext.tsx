@@ -15,10 +15,32 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedFavorites = localStorage.getItem("sr-robot-favorites")
 
     if (savedCart) {
-      setItems(JSON.parse(savedCart))
+      try {
+        const parsedCart = JSON.parse(savedCart)
+        // Asegurar que los IDs sean strings para compatibilidad
+        const normalizedCart = parsedCart.map((item: any) => ({
+          ...item,
+          id: item.id.toString() // Convertir a string si es número
+        }))
+        setItems(normalizedCart)
+      } catch (error) {
+        console.error("Error parsing cart:", error)
+        setItems([])
+      }
     }
     if (savedFavorites) {
-      setFavorites(JSON.parse(savedFavorites))
+      try {
+        const parsedFavorites = JSON.parse(savedFavorites)
+        // Asegurar que los IDs sean strings para compatibilidad
+        const normalizedFavorites = parsedFavorites.map((item: any) => ({
+          ...item,
+          id: item.id.toString() // Convertir a string si es número
+        }))
+        setFavorites(normalizedFavorites)
+      } catch (error) {
+        console.error("Error parsing favorites:", error)
+        setFavorites([])
+      }
     }
   }, [])
 
@@ -32,11 +54,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addToCart = (product: Product) => {
     setItems((prev) => {
-      const existing = prev.find((item) => item.id === product.id)
+      const existing = prev.find((item) => item.id === product.id.toString())
       if (existing) {
-        return prev.map((item) => (item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item))
+        return prev.map((item) => 
+          item.id === product.id.toString() 
+            ? { ...item, quantity: item.quantity + 1 } 
+            : item
+        )
       }
-      return [...prev, { ...product, quantity: 1 }]
+      return [...prev, { 
+        ...product, 
+        id: product.id.toString(), // Asegurar string
+        quantity: 1 
+      }]
     })
   }
 
@@ -50,14 +80,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return
     }
 
-    setItems((prev) => prev.map((item) => (item.id === productId ? { ...item, quantity } : item)))
+    setItems((prev) => 
+      prev.map((item) => 
+        item.id === productId ? { ...item, quantity } : item
+      )
+    )
   }
 
   const addToFavorites = (product: Product) => {
     setFavorites((prev) => {
-      const exists = prev.find((fav) => fav.id === product.id)
+      const exists = prev.find((fav) => fav.id === product.id.toString())
       if (exists) return prev
-      return [...prev, product]
+      return [...prev, { ...product, id: product.id.toString() }]
     })
   }
 

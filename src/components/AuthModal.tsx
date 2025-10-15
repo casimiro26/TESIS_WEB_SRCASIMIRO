@@ -118,7 +118,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ type, isOpen, onClose, onS
                 Correo: <span className="font-medium">{user.email}</span>
               </p>
               <p className="text-lg text-gray-600 dark:text-gray-300 animate-text-glow">
-                Rol: <span className="font-medium">{user.isAdmin ? "Administrador" : "Cliente"}</span>
+                Rol: <span className="font-medium">
+                  {user.rol === "superadmin" ? "Super Administrador" : user.isAdmin ? "Administrador" : "Cliente"}
+                </span>
               </p>
             </div>
             <button
@@ -145,7 +147,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ type, isOpen, onClose, onS
           className="w-1/2 p-8 flex flex-col justify-between rounded-l-2xl relative"
           style={{
             backgroundImage:
-              "url(https://tse4.mm.bing.net/th/id/OIP.PugUO0VATzrUkkvPR5QF_QHaHf?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3)",
+              "ur[](https://tse4.mm.bing.net/th/id/OIP.PugUO0VATzrUkkvPR5QF_QHaHf?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3)",
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
@@ -180,7 +182,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ type, isOpen, onClose, onS
                   className="w-12 h-12 bg-gray-200 rounded"
                   style={{
                     backgroundImage:
-                      "url(https://th.bing.com/th/id/OIP.ZKQnsCaZelrHC3OSyzUEAQHaEW?w=296&h=180&c=7&r=0&o=7&cb=12&dpr=1.3&pid=1.7&rm=3)",
+                      "ur[](https://th.bing.com/th/id/OIP.ZKQnsCaZelrHC3OSyzUEAQHaEW?w=296&h=180&c=7&r=0&o=7&cb=12&dpr=1.3&pid=1.7&rm=3)",
                     backgroundSize: "contain",
                     backgroundRepeat: "no-repeat",
                     backgroundPosition: "center",
@@ -196,7 +198,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ type, isOpen, onClose, onS
                   className="w-12 h-12 bg-gray-200 rounded"
                   style={{
                     backgroundImage:
-                      "url(https://th.bing.com/th/id/OIP.TEvo6NMxHsfZX2Kex5o28AAAAA?w=119&h=104&c=7&bgcl=d2209d&r=0&o=6&cb=12&dpr=1.3&pid=13.1)",
+                      "ur[](https://th.bing.com/th/id/OIP.TEvo6NMxHsfZX2Kex5o28AAAAA?w=119&h=104&c=7&bgcl=d2209d&r=0&o=6&cb=12&dpr=1.3&pid=13.1)",
                     backgroundSize: "contain",
                     backgroundRepeat: "no-repeat",
                     backgroundPosition: "center",
@@ -212,7 +214,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ type, isOpen, onClose, onS
                   className="w-12 h-12 bg-gray-200 rounded"
                   style={{
                     backgroundImage:
-                      "url(https://http2.mlstatic.com/D_NQ_NP_862559-MLU72955963247_112023-O.webp)",
+                      "ur[](https://http2.mlstatic.com/D_NQ_NP_862559-MLU72955963247_112023-O.webp)",
                     backgroundSize: "contain",
                     backgroundRepeat: "no-repeat",
                     backgroundPosition: "center",

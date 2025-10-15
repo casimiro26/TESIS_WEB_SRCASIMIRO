@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, memo, useMemo } from "react"
+import { useState, memo, useMemo, useEffect } from "react"
 import {
   X,
   Users,
@@ -18,6 +18,10 @@ import {
   FileText,
   Clock,
   Activity,
+  RefreshCw,
+  Tag,
+  Plus,
+  Edit,
 } from "lucide-react"
 import {
   Chart as ChartJS,
@@ -29,6 +33,7 @@ import {
   BarElement,
   Tooltip,
   Legend,
+  Filler
 } from "chart.js"
 import { Line, Doughnut, Bar } from "react-chartjs-2"
 import { useStore } from "../context/StoreContext"
@@ -36,7 +41,17 @@ import { useCart } from "../context/CartContext"
 import type { Product } from "../types"
 import type { Order } from "../context/StoreContext"
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, BarElement, Tooltip, Legend)
+ChartJS.register(
+  CategoryScale, 
+  LinearScale, 
+  PointElement, 
+  LineElement, 
+  ArcElement, 
+  BarElement, 
+  Tooltip, 
+  Legend,
+  Filler
+)
 
 interface AdminDashboardProps {
   isOpen: boolean
@@ -45,13 +60,57 @@ interface AdminDashboardProps {
 
 interface Activity {
   id: string
-  type: "order" | "product_added" | "payment_confirmed"
+  type: "order" | "product_added" | "payment_confirmed" | "category_added"
   description: string
-  timestamp: string // ISO string or formatted date
+  timestamp: string
+}
+
+interface Category {
+  id_categoria: number
+  nombre: string
+  descripcion: string
+}
+
+// ✅ MOVER LAS FUNCIONES AUXILIARES FUERA DEL COMPONENTE
+const calculateMonthlySales = (orders: Order[]): number[] => {
+  const monthlySales = [0, 0, 0, 0, 0, 0] // Últimos 6 meses
+  
+  orders.forEach(order => {
+    const orderDate = new Date(order.date)
+    const monthDiff = (new Date().getMonth() - orderDate.getMonth() + 12) % 12
+    
+    if (monthDiff < 6) {
+      monthlySales[5 - monthDiff] += order.total
+    }
+  })
+  
+  return monthlySales
+}
+
+const calculateCategoryDistribution = (products: Product[]): Record<string, number> => {
+  const distribution: Record<string, number> = {}
+  
+  products.forEach(product => {
+    distribution[product.category] = (distribution[product.category] || 0) + 1
+  })
+  
+  return distribution
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onClose }) => {
-  const { products, orders, addProduct, updateProduct, deleteProduct, confirmReceipt } = useStore()
+  const { 
+    products, 
+    orders, 
+    addProduct, 
+    updateProduct, 
+    deleteProduct, 
+    confirmReceipt, 
+    loading: storeLoading,
+    error: storeError,
+    loadProducts,
+    clearError
+  } = useStore()
+  
   useCart()
 
   const [activeTab, setActiveTab] = useState("overview")
@@ -59,6 +118,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [searchTerm, setSearchTerm] = useState("")
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [newProduct, setNewProduct] = useState({
     name: "",
     category: "",
@@ -70,7 +130,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     productCode: "",
     inStock: true,
   })
+  const [newCategory, setNewCategory] = useState({
+    nombre: "",
+    descripcion: ""
+  })
   const [editProduct, setEditProduct] = useState<Product | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
   const [errors, setErrors] = useState({
     name: "",
     category: "",
@@ -80,6 +145,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     description: "",
     characteristics: "",
     productCode: "",
+    categoryName: ""
   })
   const [isLoading, setIsLoading] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
@@ -87,21 +153,143 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [orderSearchTerm, setOrderSearchTerm] = useState("")
   const [orderFilter, setOrderFilter] = useState("Todos")
   const [productFilter, setProductFilter] = useState("Todos")
+  const [refreshing, setRefreshing] = useState(false)
 
+  // Cargar categorías desde la API REAL
+  const loadCategories = async () => {
+    try {
+      const token = localStorage.getItem("sr-robot-token")
+      if (!token) {
+        console.log("No token found for categories")
+        return
+      }
+
+      const response = await fetch("https://api-web-egdy.onrender.com/api/admin/categorias", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setCategories(data.categorias || [])
+      } else {
+        console.error("Error loading categories:", response.status)
+        // Fallback a categorías estáticas
+        const defaultCategories: Category[] = [
+          { id_categoria: 1, nombre: "Laptops", descripcion: "Computadoras portátiles" },
+          { id_categoria: 2, nombre: "Smartphones", descripcion: "Teléfonos inteligentes" },
+          { id_categoria: 3, nombre: "Tablets", descripcion: "Tabletas y iPads" },
+          { id_categoria: 4, nombre: "Accesorios", descripcion: "Accesorios tecnológicos" },
+        ]
+        setCategories(defaultCategories)
+      }
+    } catch (error) {
+      console.error("Error loading categories:", error)
+      // Fallback a categorías estáticas
+      const defaultCategories: Category[] = [
+        { id_categoria: 1, nombre: "Laptops", descripcion: "Computadoras portátiles" },
+        { id_categoria: 2, nombre: "Smartphones", descripcion: "Teléfonos inteligentes" },
+        { id_categoria: 3, nombre: "Tablets", descripcion: "Tabletas y iPads" },
+        { id_categoria: 4, nombre: "Accesorios", descripcion: "Accesorios tecnológicos" },
+      ]
+      setCategories(defaultCategories)
+    }
+  }
+
+  // Crear nueva categoría - CONECTADO A API REAL
+  const handleCreateCategory = async () => {
+    if (!newCategory.nombre.trim()) {
+      setErrors(prev => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const token = localStorage.getItem("sr-robot-token")
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch("https://api-web-egdy.onrender.com/api/admin/crear-categoria", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          nombre: newCategory.nombre,
+          descripcion: newCategory.descripcion
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ mensaje: "Error creating category" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
+      }
+
+      const responseData = await response.json()
+      
+      // Recargar categorías desde la API
+      await loadCategories()
+      
+      setShowCategoryModal(false)
+      setNewCategory({ nombre: "", descripcion: "" })
+      setErrors(prev => ({ ...prev, categoryName: "" }))
+      setToast({ message: "Categoría creada con éxito", type: "success" })
+    } catch (error: any) {
+      console.error("Error creating category:", error)
+      setToast({ message: error.message || "Error al crear categoría", type: "error" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Mostrar errores del StoreContext
+  useEffect(() => {
+    if (storeError) {
+      setToast({ message: storeError, type: "error" })
+      setTimeout(() => {
+        setToast(null)
+        clearError()
+      }, 5000)
+    }
+  }, [storeError, clearError])
+
+  // Cargar datos iniciales
+  useEffect(() => {
+    if (isOpen) {
+      loadCategories()
+    }
+  }, [isOpen])
+
+  // Estadísticas REALES basadas en datos
   const stats = useMemo(() => {
+    // Clientes activos - ESTE DATO DEBE VENIR DE TU API
+    // Por ahora usamos un valor fijo hasta que implementes el endpoint de usuarios
+    const activeCustomers = 1 // Cambiado de 856 a 1 según tu comentario
+    
+    // Productos activos (en stock)
+    const activeProducts = products.filter(p => p.inStock).length
+    
+    // Total de pedidos
+    const totalOrders = orders.length
+    
+    // Ingresos totales en soles
     const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
-    const categoryDistribution: Record<string, number> = {}
-
-    products.forEach((product) => {
-      categoryDistribution[product.category] = (categoryDistribution[product.category] || 0) + 1
-    })
+    
+    // Ventas mensuales (últimos 6 meses basados en pedidos reales)
+    const monthlySales = calculateMonthlySales(orders)
+    
+    // Distribución por categoría REAL
+    const categoryDistribution = calculateCategoryDistribution(products)
 
     return {
-      totalUsers: 1247,
-      totalOrders: orders.length,
+      activeCustomers,
+      activeProducts,
+      totalOrders,
       totalRevenue,
-      totalProducts: products.length,
-      monthlySales: [1500, 2000, 2500, 3000, 4500, totalRevenue],
+      monthlySales,
       categoryDistribution,
     }
   }, [products, orders])
@@ -109,31 +297,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const recentActivities = useMemo(() => {
     const activities: Activity[] = []
 
-    orders.forEach((order) => {
+    // Actividades de pedidos
+    orders.slice(0, 3).forEach((order) => {
       activities.push({
         id: `order-${order.id}`,
         type: "order",
         description: `Nuevo pedido #${order.id} de ${order.customer.name} por S/${order.total.toFixed(2)}`,
         timestamp: order.date,
       })
-      if (order.hasReceipt) {
-        activities.push({
-          id: `payment-${order.id}`,
-          type: "payment_confirmed",
-          description: `Comprobante de pago confirmado para el pedido #${order.id}`,
-          timestamp: order.date,
-        })
-      }
     })
 
-    products.slice(0, 3).forEach((product, index) => {
-      const simulatedDate = new Date()
-      simulatedDate.setDate(simulatedDate.getDate() - index)
+    // Actividades de productos agregados recientemente
+    products.slice(0, 2).forEach((product) => {
       activities.push({
         id: `product-${product.id}`,
         type: "product_added",
         description: `Producto "${product.name}" agregado al inventario`,
-        timestamp: simulatedDate.toISOString(),
+        timestamp: new Date().toISOString(),
       })
     })
 
@@ -151,14 +331,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       const date = new Date()
       date.setDate(date.getDate() - i)
       labels.push(date.toLocaleDateString("es-PE", { day: "numeric", month: "short" }))
+      
+      // Contar actividades reales de ese día
       const count = recentActivities.filter((activity) => {
         const activityDate = new Date(activity.timestamp)
-        return (
-          activityDate.getDate() === date.getDate() &&
-          activityDate.getMonth() === date.getMonth() &&
-          activityDate.getFullYear() === date.getFullYear()
-        )
+        return activityDate.toDateString() === date.toDateString()
       }).length
+      
       data.push(count)
     }
 
@@ -215,6 +394,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       description: "",
       characteristics: "",
       productCode: "",
+      categoryName: ""
     }
     let isValid = true
 
@@ -227,7 +407,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       isValid = false
     }
     if (!newProduct.price || isNaN(Number(newProduct.price)) || Number(newProduct.price) <= 0 || Number(newProduct.price) > 10000) {
-      newErrors.price = "El precio debe ser un número entre 0.01 y 10000 (sin comas)"
+      newErrors.price = "El precio debe ser un número entre 0.01 y 10000"
       isValid = false
     }
     if (
@@ -259,12 +439,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   }
 
   const handleAddProduct = () => {
-    if (selectedCategory === "Todos") {
-      setToast({ message: "Por favor, selecciona una categoría antes de agregar un producto.", type: "error" })
-      setTimeout(() => setToast(null), 3000)
-      return
-    }
-    setNewProduct((prev) => ({ ...prev, category: selectedCategory }))
     setShowAddModal(true)
   }
 
@@ -284,116 +458,153 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     setShowEditModal(true)
   }
 
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar este producto?")) {
-      deleteProduct(productId)
-      setToast({ message: "Producto eliminado con éxito", type: "success" })
+      setIsLoading(true)
+      const success = await deleteProduct(productId)
+      setIsLoading(false)
+      
+      if (success) {
+        setToast({ message: "Producto eliminado con éxito", type: "success" })
+      } else {
+        setToast({ message: "Error al eliminar el producto", type: "error" })
+      }
       setTimeout(() => setToast(null), 3000)
     }
   }
 
-  const handleSaveNewProduct = () => {
+  const handleSaveNewProduct = async () => {
     if (!validateForm()) return
 
     setIsLoading(true)
-    setTimeout(() => {
-      const discount = newProduct.discount ? Number(newProduct.discount) : undefined
-      const price = Number(newProduct.price)
-      const originalPrice = discount ? Math.round(price / (1 - discount / 100)) : undefined
+    
+    const discount = newProduct.discount ? Number(newProduct.discount) : undefined
+    const price = Number(newProduct.price)
+    const originalPrice = discount ? Math.round(price / (1 - discount / 100)) : undefined
 
-      addProduct({
-        name: newProduct.name,
-        category: newProduct.category,
-        price,
-        originalPrice,
-        discount,
-        image: newProduct.image,
-        description: newProduct.description,
-        characteristics: newProduct.characteristics,
-        productCode: newProduct.productCode,
-        rating: 4.5,
-        reviews: 0,
-        inStock: newProduct.inStock,
-        featured: false,
-      })
+    const productData = {
+      name: newProduct.name,
+      category: newProduct.category,
+      price,
+      originalPrice,
+      discount,
+      image: newProduct.image,
+      description: newProduct.description,
+      characteristics: newProduct.characteristics,
+      productCode: newProduct.productCode,
+      rating: 4.5,
+      reviews: 0,
+      inStock: newProduct.inStock,
+      featured: false,
+    }
 
-      setShowAddModal(false)
-      setNewProduct({
-        name: "",
-        category: "",
-        price: "",
-        discount: "",
-        image: "",
-        description: "",
-        characteristics: "",
-        productCode: "",
-        inStock: true,
-      })
-      setErrors({
-        name: "",
-        category: "",
-        price: "",
-        discount: "",
-        image: "",
-        description: "",
-        characteristics: "",
-        productCode: "",
-      })
+    try {
+      const success = await addProduct(productData)
+      
+      if (success) {
+        setShowAddModal(false)
+        setNewProduct({
+          name: "",
+          category: "",
+          price: "",
+          discount: "",
+          image: "",
+          description: "",
+          characteristics: "",
+          productCode: "",
+          inStock: true,
+        })
+        setErrors({
+          name: "",
+          category: "",
+          price: "",
+          discount: "",
+          image: "",
+          description: "",
+          characteristics: "",
+          productCode: "",
+          categoryName: ""
+        })
+        setToast({ message: "Producto agregado con éxito", type: "success" })
+      } else {
+        setToast({ message: "Error al agregar el producto", type: "error" })
+      }
+    } catch (error) {
+      setToast({ message: "Error al agregar el producto", type: "error" })
+    } finally {
       setIsLoading(false)
-      setToast({ message: "Producto agregado con éxito", type: "success" })
       setTimeout(() => setToast(null), 3000)
-    }, 1000)
+    }
   }
 
-  const handleSaveEditProduct = () => {
+  const handleSaveEditProduct = async () => {
     if (!validateForm() || !editProduct) return
 
     setIsLoading(true)
-    setTimeout(() => {
-      const discount = newProduct.discount ? Number(newProduct.discount) : undefined
-      const price = Number(newProduct.price)
-      const originalPrice = discount ? Math.round(price / (1 - discount / 100)) : undefined
+    
+    const discount = newProduct.discount ? Number(newProduct.discount) : undefined
+    const price = Number(newProduct.price)
+    const originalPrice = discount ? Math.round(price / (1 - discount / 100)) : undefined
 
-      updateProduct(editProduct.id, {
-        name: newProduct.name,
-        category: newProduct.category,
-        price,
-        originalPrice,
-        discount,
-        image: newProduct.image,
-        description: newProduct.description,
-        characteristics: newProduct.characteristics,
-        productCode: newProduct.productCode,
-        inStock: newProduct.inStock,
-      })
+    const productData = {
+      name: newProduct.name,
+      category: newProduct.category,
+      price,
+      originalPrice,
+      discount,
+      image: newProduct.image,
+      description: newProduct.description,
+      characteristics: newProduct.characteristics,
+      productCode: newProduct.productCode,
+      inStock: newProduct.inStock,
+    }
 
-      setShowEditModal(false)
-      setEditProduct(null)
-      setNewProduct({
-        name: "",
-        category: "",
-        price: "",
-        discount: "",
-        image: "",
-        description: "",
-        characteristics: "",
-        productCode: "",
-        inStock: true,
-      })
-      setErrors({
-        name: "",
-        category: "",
-        price: "",
-        discount: "",
-        image: "",
-        description: "",
-        characteristics: "",
-        productCode: "",
-      })
+    try {
+      const success = await updateProduct(editProduct.id, productData)
+      
+      if (success) {
+        setShowEditModal(false)
+        setEditProduct(null)
+        setNewProduct({
+          name: "",
+          category: "",
+          price: "",
+          discount: "",
+          image: "",
+          description: "",
+          characteristics: "",
+          productCode: "",
+          inStock: true,
+        })
+        setErrors({
+          name: "",
+          category: "",
+          price: "",
+          discount: "",
+          image: "",
+          description: "",
+          characteristics: "",
+          productCode: "",
+          categoryName: ""
+        })
+        setToast({ message: "Producto actualizado con éxito", type: "success" })
+      } else {
+        setToast({ message: "Error al actualizar el producto", type: "error" })
+      }
+    } catch (error) {
+      setToast({ message: "Error al actualizar el producto", type: "error" })
+    } finally {
       setIsLoading(false)
-      setToast({ message: "Producto actualizado con éxito", type: "success" })
       setTimeout(() => setToast(null), 3000)
-    }, 1000)
+    }
+  }
+
+  const handleRefreshProducts = async () => {
+    setRefreshing(true)
+    await loadProducts()
+    setRefreshing(false)
+    setToast({ message: "Productos actualizados", type: "success" })
+    setTimeout(() => setToast(null), 2000)
   }
 
   const handleConfirmReceipt = (orderId: number) => {
@@ -423,6 +634,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
         return <Package className="w-5 h-5 text-blue-600" />
       case "payment_confirmed":
         return <CheckCircle className="w-5 h-5 text-green-600" />
+      case "category_added":
+        return <Tag className="w-5 h-5 text-purple-600" />
       default:
         return <Activity className="w-5 h-5 text-gray-600" />
     }
@@ -431,29 +644,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const getActivityBadge = (type: Activity["type"]) => {
     switch (type) {
       case "order":
-        return (
-          <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-600 rounded-full">
-            Pedido
-          </span>
-        )
+        return <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-600 rounded-full">Pedido</span>
       case "product_added":
-        return (
-          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-600 rounded-full">
-            Producto Agregado
-          </span>
-        )
+        return <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-600 rounded-full">Producto</span>
       case "payment_confirmed":
-        return (
-          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-600 rounded-full">
-            Pago Confirmado
-          </span>
-        )
+        return <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-600 rounded-full">Pago</span>
+      case "category_added":
+        return <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-600 rounded-full">Categoría</span>
       default:
-        return (
-          <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-            Actividad
-          </span>
-        )
+        return <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">Actividad</span>
     }
   }
 
@@ -467,13 +666,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
             </div>
             Dashboard Administrativo Sr. Robot
           </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
-            aria-label="Cerrar dashboard"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleRefreshProducts}
+              disabled={refreshing || storeLoading}
+              className="p-2 hover:bg-white/20 rounded-full transition-colors text-white disabled:opacity-50"
+              aria-label="Actualizar productos"
+            >
+              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+              aria-label="Cerrar dashboard"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         <div className="flex h-[calc(100%-64px)]">
@@ -482,6 +691,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               {[
                 { id: "overview", label: "Resumen General", icon: TrendingUp },
                 { id: "products", label: "Productos", icon: Package },
+                { id: "categories", label: "Categorías", icon: Tag },
                 { id: "orders", label: "Pedidos", icon: ShoppingBag },
                 { id: "users", label: "Usuarios", icon: Users },
               ].map((tab) => (
@@ -500,24 +710,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
           </div>
 
           <div className="flex-1 p-6 overflow-y-auto bg-gray-50">
+            {/* RESUMEN GENERAL */}
             {activeTab === "overview" && (
               <div className="space-y-8">
-                <h2 className="text-2xl font-semibold text-gray-900">Dashboard Resumen General</h2>
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-semibold text-gray-900">Dashboard Resumen General</h2>
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    {storeLoading && (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Cargando productos...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* ESTADÍSTICAS MEJORADAS */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3">
                       <Users className="w-6 h-6 text-red-600" />
-                      <p className="text-gray-600 font-medium">Total Usuarios</p>
+                      <p className="text-gray-600 font-medium">Clientes Activos</p>
                     </div>
-                    <p className="text-3xl font-bold text-red-600 mt-2">{stats.totalUsers.toLocaleString()}</p>
-                    <p className="text-sm text-gray-500 mt-1">+12.5% este mes</p>
+                    <p className="text-3xl font-bold text-red-600 mt-2">{stats.activeCustomers.toLocaleString()}</p>
+                    <p className="text-sm text-gray-500 mt-1">Clientes registrados</p>
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3">
                       <Package className="w-6 h-6 text-red-600" />
-                      <p className="text-gray-600 font-medium">Total Productos</p>
+                      <p className="text-gray-600 font-medium">Productos Activos</p>
                     </div>
-                    <p className="text-3xl font-bold text-red-600 mt-2">{stats.totalProducts.toLocaleString()}</p>
+                    <p className="text-3xl font-bold text-red-600 mt-2">{stats.activeProducts.toLocaleString()}</p>
                     <p className="text-sm text-gray-500 mt-1">En inventario</p>
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
@@ -526,28 +749,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       <p className="text-gray-600 font-medium">Total Pedidos</p>
                     </div>
                     <p className="text-3xl font-bold text-red-600 mt-2">{stats.totalOrders.toLocaleString()}</p>
-                    <p className="text-sm text-gray-500 mt-1">+3.2% conversión</p>
+                    <p className="text-sm text-gray-500 mt-1">Pedidos realizados</p>
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3">
                       <DollarSign className="w-6 h-6 text-red-600" />
-                      <p className="text-gray-600 font-medium">Ingresos</p>
+                      <p className="text-gray-600 font-medium">Ingresos Totales</p>
                     </div>
                     <p className="text-3xl font-bold text-red-600 mt-2">S/{stats.totalRevenue.toFixed(2)}</p>
-                    <p className="text-sm text-gray-500 mt-1">Este mes</p>
+                    <p className="text-sm text-gray-500 mt-1">En soles peruanos</p>
                   </div>
                 </div>
+
+                {/* GRÁFICAS MEJORADAS */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 h-[450px]">
                     <h3 className="text-xl font-bold text-gray-900 tracking-tight mb-2">Ventas Mensuales</h3>
-                    <p className="text-sm text-gray-500 font-medium mb-4">Últimos 6 meses</p>
+                    <p className="text-sm text-gray-500 font-medium mb-4">Últimos 6 meses (S/)</p>
                     <div className="h-72">
                       <Line
                         data={{
-                          labels: ["Ene", "Feb", "Mar", "Abr", "May", "Jun"],
+                          labels: ["Hace 5m", "Hace 4m", "Hace 3m", "Hace 2m", "Hace 1m", "Este mes"],
                           datasets: [
                             {
-                              label: "Ventas",
+                              label: "Ventas (S/)",
                               data: stats.monthlySales,
                               fill: true,
                               backgroundColor: "rgba(239, 68, 68, 0.2)",
@@ -562,22 +787,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                           maintainAspectRatio: false,
                           plugins: {
                             legend: { display: false },
-                            title: {
-                              display: true,
-                              text: "Ventas Mensuales (S/)",
-                              font: { size: 18, weight: "bold" },
-                              color: "#1f2937",
-                              padding: { top: 10, bottom: 20 },
-                              align: "center" as const,
-                            },
                           },
                           scales: {
                             x: {
-                              ticks: { font: { size: 14 }, color: "#1f2937" },
+                              ticks: { font: { size: 12 }, color: "#1f2937" },
                               grid: { display: false },
                             },
                             y: {
-                              ticks: { font: { size: 14 }, color: "#1f2937" },
+                              ticks: { font: { size: 12 }, color: "#1f2937" },
                               grid: { color: "#e5e7eb" },
                             },
                           },
@@ -587,7 +804,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 h-[450px]">
                     <h3 className="text-xl font-bold text-gray-900 tracking-tight mb-2">Distribución por Categoría</h3>
-                    <p className="text-sm text-gray-500 font-medium mb-4">Por producto</p>
+                    <p className="text-sm text-gray-500 font-medium mb-4">Productos por categoría</p>
                     <div className="h-60">
                       <Doughnut
                         data={{
@@ -596,17 +813,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                             {
                               data: Object.values(stats.categoryDistribution),
                               backgroundColor: [
-                                "#ef4444",
-                                "#3b82f6",
-                                "#10b981",
-                                "#f59e0b",
-                                "#8b5cf6",
-                                "#ec4899",
-                                "#06b6d4",
-                                "#f97316",
-                                "#14b8a6",
-                                "#a855f7",
-                                "#84cc16",
+                                "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", 
+                                "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#a855f7"
                               ],
                               borderWidth: 1,
                             },
@@ -616,17 +824,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                           responsive: true,
                           maintainAspectRatio: false,
                           cutout: "50%",
-                          plugins: {
-                            legend: { display: false },
-                            title: {
-                              display: true,
-                              text: "Distribución por Categoría",
-                              font: { size: 18, weight: "bold" },
-                              color: "#1f2937",
-                              padding: { top: 10, bottom: 20 },
-                              align: "center" as const,
-                            },
-                          },
                         }}
                       />
                     </div>
@@ -637,18 +834,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                             className="w-3 h-3 rounded-sm"
                             style={{
                               backgroundColor: [
-                                "#ef4444",
-                                "#3b82f6",
-                                "#10b981",
-                                "#f59e0b",
-                                "#8b5cf6",
-                                "#ec4899",
-                                "#06b6d4",
-                                "#f97316",
-                                "#14b8a6",
-                                "#a855f7",
-                                "#84cc16",
-                              ][index % 11],
+                                "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6",
+                                "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#a855f7"
+                              ][index % 10],
                             }}
                           ></span>
                           <span className="text-sm text-gray-600 font-normal">{label}</span>
@@ -657,6 +845,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     </div>
                   </div>
                 </div>
+
+                {/* ACTIVIDADES RECIENTES */}
                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
                   <h3 className="text-xl font-bold text-gray-900 tracking-tight mb-4">Actividades Recientes</h3>
                   <p className="text-sm text-gray-500 font-medium mb-6">Últimas acciones registradas en el sistema</p>
@@ -700,19 +890,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                             legend: {
                               display: true,
                               position: "top" as const,
-                              labels: {
-                                font: { size: 12 },
-                                color: "#1f2937",
-                              },
-                            },
-                            title: {
-                              display: false,
-                            },
-                            tooltip: {
-                              backgroundColor: "#1f2937",
-                              titleFont: { size: 14 },
-                              bodyFont: { size: 12 },
-                              padding: 10,
                             },
                           },
                           scales: {
@@ -734,9 +911,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
+            {/* GESTIÓN DE PRODUCTOS */}
             {activeTab === "products" && (
               <div className="space-y-6">
-                <h3 className="text-2xl font-bold text-gray-900">Gestión de Productos</h3>
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-gray-900">Gestión de Productos</h3>
+                  <div className="flex items-center gap-2">
+                    {storeLoading && (
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Cargando...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                   <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
                     <div className="relative w-full sm:w-1/3">
@@ -763,41 +952,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     </div>
                     <button
                       onClick={handleAddProduct}
-                      className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
+                      disabled={storeLoading}
+                      className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
+                        storeLoading ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                     >
                       <Package className="w-5 h-5" />
                       Agregar Producto
                     </button>
                   </div>
+
                   <div className="flex flex-wrap gap-2 mb-6">
-                    {[
-                      "Todos",
-                      "Impresoras",
-                      "Cables",
-                      "Pantallas",
-                      "Gaming",
-                      "Monitores",
-                      "Laptops",
-                      "Cargadores",
-                      "Mouse",
-                      "Teclados",
-                      "Partes de pc",
-                      "Cámaras de Seguridad",
-                    ].map((category) => (
+                    <button
+                      onClick={() => setSelectedCategory("Todos")}
+                      className={`px-4 py-2 rounded-lg transition-colors font-medium ${
+                        selectedCategory === "Todos"
+                          ? "bg-red-600 text-white shadow-sm"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    {categories.map((category) => (
                       <button
-                        key={category}
-                        onClick={() => setSelectedCategory(category)}
+                        key={category.id_categoria}
+                        onClick={() => setSelectedCategory(category.nombre)}
                         className={`px-4 py-2 rounded-lg transition-colors font-medium ${
-                          selectedCategory === category
+                          selectedCategory === category.nombre
                             ? "bg-red-600 text-white shadow-sm"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                         }`}
                       >
-                        {category}
+                        {category.nombre}
                       </button>
                     ))}
                   </div>
-                  {filteredProducts.length === 0 ? (
+
+                  {storeLoading && products.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-red-600" />
+                      <p className="text-gray-500 mt-2">Cargando productos...</p>
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
                     <p className="text-center text-gray-500 py-8">No se encontraron productos.</p>
                   ) : (
                     <div className="overflow-x-auto">
@@ -824,15 +1020,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                                   loading="lazy"
                                 />
                               </td>
-                              <td className="p-4 text-gray-900 font-medium">{product.id}</td>
+                              <td className="p-4 text-gray-900 font-medium">
+                                {product.id_producto || product.id}
+                              </td>
                               <td className="p-4 text-gray-900">{product.name}</td>
                               <td className="p-4 text-gray-900">{product.category}</td>
                               <td className="p-4 text-gray-900 font-medium">
-                                ${getDiscountedPrice(product.price, product.discount)}
+                                S/{getDiscountedPrice(product.price, product.discount)}
                                 {product.discount && (
                                   <>
                                     <span className="text-sm text-gray-500 line-through ml-2">
-                                      ${product.originalPrice}
+                                      S/{product.originalPrice}
                                     </span>
                                     <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full ml-2">
                                       -{product.discount}%
@@ -855,11 +1053,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                                     onClick={() => handleEditProduct(product)}
                                     className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium flex items-center gap-1"
                                   >
+                                    <Edit className="w-4 h-4" />
                                     Editar
                                   </button>
                                   <button
                                     onClick={() => handleDeleteProduct(product.id)}
-                                    className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium flex items-center gap-1"
+                                    disabled={isLoading}
+                                    className={`px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium flex items-center gap-1 ${
+                                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
                                   >
                                     <Trash2 className="w-4 h-4" />
                                     Eliminar
@@ -876,448 +1078,403 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
+            {/* GESTIÓN DE CATEGORÍAS */}
+            {activeTab === "categories" && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-gray-900">Gestión de Categorías</h3>
+                  <button
+                    onClick={() => setShowCategoryModal(true)}
+                    className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Nueva Categoría
+                  </button>
+                </div>
+                
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {categories.map((category) => (
+                      <div key={category.id_categoria} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                        <div className="flex items-center gap-3 mb-3">
+                          <Tag className="w-6 h-6 text-red-600" />
+                          <h4 className="text-lg font-semibold text-gray-900">{category.nombre}</h4>
+                        </div>
+                        <p className="text-gray-600 text-sm mb-4">
+                          {category.descripcion || "Sin descripción"}
+                        </p>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-500">
+                            ID: {category.id_categoria}
+                          </span>
+                          <button className="text-red-600 hover:text-red-700 text-sm font-medium">
+                            Editar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {categories.length === 0 && (
+                    <div className="text-center py-12">
+                      <Tag className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 text-lg">No hay categorías registradas</p>
+                      <p className="text-gray-400 text-sm mt-2">Crea tu primera categoría para organizar tus productos</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* MODAL PARA AGREGAR PRODUCTO */}
             {showAddModal && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                <div className="bg-gradient-to-br from-red-50 to-gray-100 rounded-2xl p-8 w-full max-w-xl shadow-2xl max-h-[90vh] overflow-y-auto transform scale-95 animate-[scale-in_0.3s_ease-out] border border-red-200">
-                  <h3 className="text-3xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                    <Package className="w-6 h-6 text-red-600" />
-                    Agregar Nuevo Producto
-                  </h3>
-                  <div className="space-y-6">
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-900">Agregar Nuevo Producto</h3>
+                    <button
+                      onClick={() => setShowAddModal(false)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Nombre</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={newProduct.name}
-                          onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                          className={`w-full px-4 py-3 border ${
-                            errors.name ? "border-red-500" : "border-gray-300"
-                          } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white/80 shadow-sm transition-all duration-300`}
-                          placeholder="Ej: Teclado Mecánico RGB"
-                        />
-                        <Package className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      </div>
-                      {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nombre del Producto</label>
+                      <input
+                        type="text"
+                        value={newProduct.name}
+                        onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="Ej: MacBook Pro 14"
+                      />
+                      {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Categoría</label>
-                      <div className="relative">
-                        <select
-                          value={newProduct.category}
-                          onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                          className={`w-full px-4 py-3 border ${
-                            errors.category ? "border-red-500" : "border-gray-300"
-                          } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white/80 shadow-sm transition-all duration-300 appearance-none`}
-                        >
-                          <option value="">Seleccionar categoría</option>
-                          {[
-                            "Impresoras",
-                            "Cables",
-                            "Pantallas",
-                            "Gaming",
-                            "Monitores",
-                            "Laptops",
-                            "Cargadores",
-                            "Mouse",
-                            "Teclados",
-                            "Partes de pc",
-                            "Cámaras de Seguridad",
-                          ].map((cat) => (
-                            <option key={cat} value={cat}>
-                              {cat}
-                            </option>
-                          ))}
-                        </select>
-                        <svg
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </div>
-                      {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
+                      <select
+                        value={newProduct.category}
+                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      >
+                        <option value="Todos">Seleccionar categoría</option>
+                        {categories.map((category) => (
+                          <option key={category.id_categoria} value={category.nombre}>
+                            {category.nombre}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.category && <p className="text-red-600 text-sm mt-1">{errors.category}</p>}
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Precio (S/)</label>
-                      <div className="relative">
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Precio (S/)</label>
                         <input
                           type="number"
+                          step="0.01"
                           value={newProduct.price}
                           onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                          className={`w-full px-4 py-3 border ${
-                            errors.price ? "border-red-500" : "border-gray-300"
-                          } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white/80 shadow-sm transition-all duration-300`}
-                          step="any"
-                          min="0.01"
-                          max="10000"
-                          placeholder="Ej: 50000"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                          placeholder="0.00"
                         />
-                        <DollarSign className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                        {errors.price && <p className="text-red-600 text-sm mt-1">{errors.price}</p>}
                       </div>
-                      {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Descuento (%)</label>
-                      <div className="relative">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Descuento (%)</label>
                         <input
                           type="number"
                           value={newProduct.discount}
                           onChange={(e) => setNewProduct({ ...newProduct, discount: e.target.value })}
-                          className={`w-full px-4 py-3 border ${
-                            errors.discount ? "border-red-500" : "border-gray-300"
-                          } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white/80 shadow-sm transition-all duration-300`}
-                          placeholder="Ej: 10 (opcional)"
-                          min="0"
-                          max="100"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                          placeholder="0"
                         />
-                        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg">%</span>
+                        {errors.discount && <p className="text-red-600 text-sm mt-1">{errors.discount}</p>}
                       </div>
-                      {errors.discount && <p className="text-red-500 text-xs mt-1">{errors.discount}</p>}
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">URL de Imagen</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={newProduct.image}
-                          onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-                          className={`w-full px-4 py-3 border ${
-                            errors.image ? "border-red-500" : "border-gray-300"
-                          } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white/80 shadow-sm transition-all duration-300`}
-                          placeholder="Ej: https://ejemplo.com/imagen.jpg"
-                        />
-                        <svg
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                          />
-                        </svg>
-                      </div>
-                      {errors.image && <p className="text-red-500 text-xs mt-1">{errors.image}</p>}
-                      {newProduct.image && (
-                        <div className="mt-3 border border-gray-300 rounded-lg p-3 bg-white/50 shadow-sm">
-                          <img
-                            src={newProduct.image || "/placeholder.svg"}
-                            alt="Vista previa"
-                            className="w-full h-40 object-contain rounded-lg"
-                            onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
-                          />
-                        </div>
-                      )}
+                      <label className="block text-sm font-medium text-gray-700 mb-2">URL de la Imagen</label>
+                      <input
+                        type="url"
+                        value={newProduct.image}
+                        onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="https://ejemplo.com/imagen.jpg"
+                      />
+                      {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Descripción</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
                       <textarea
                         value={newProduct.description}
                         onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                        className={`w-full px-4 py-3 border ${
-                          errors.description ? "border-red-500" : "border-gray-300"
-                        } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white/80 shadow-sm transition-all duration-300`}
-                        rows={4}
-                        placeholder="Ej: Teclado mecánico con retroiluminación RGB y switches Cherry MX"
+                        rows={3}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="Descripción detallada del producto..."
                       />
-                      {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
+                      {errors.description && <p className="text-red-600 text-sm mt-1">{errors.description}</p>}
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Características</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Características</label>
                       <textarea
                         value={newProduct.characteristics}
                         onChange={(e) => setNewProduct({ ...newProduct, characteristics: e.target.value })}
-                        className={`w-full px-4 py-3 border ${
-                          errors.characteristics ? "border-red-500" : "border-gray-300"
-                        } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white/80 shadow-sm transition-all duration-300`}
-                        rows={4}
-                        placeholder="Ej: Conexión USB-C, 100 teclas, peso 1.2kg"
+                        rows={3}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="Características técnicas del producto..."
                       />
-                      {errors.characteristics && <p className="text-red-500 text-xs mt-1">{errors.characteristics}</p>}
+                      {errors.characteristics && <p className="text-red-600 text-sm mt-1">{errors.characteristics}</p>}
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Código de Producto</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={newProduct.productCode}
-                          onChange={(e) => setNewProduct({ ...newProduct, productCode: e.target.value })}
-                          className={`w-full px-4 py-3 border ${
-                            errors.productCode ? "border-red-500" : "border-gray-300"
-                          } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white/80 shadow-sm transition-all duration-300`}
-                          placeholder="Ej: TK-MRGB-001"
-                        />
-                        <svg
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m-2 4h2M6 12h4m-6 0h2v4m0-11v3"
-                          />
-                        </svg>
-                      </div>
-                      {errors.productCode && <p className="text-red-500 text-xs mt-1">{errors.productCode}</p>}
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Código de Producto</label>
+                      <input
+                        type="text"
+                        value={newProduct.productCode}
+                        onChange={(e) => setNewProduct({ ...newProduct, productCode: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="SKU-001"
+                      />
+                      {errors.productCode && <p className="text-red-600 text-sm mt-1">{errors.productCode}</p>}
                     </div>
-                    <div className="flex items-center gap-3">
+                    
+                    <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
+                        id="inStock"
                         checked={newProduct.inStock}
                         onChange={(e) => setNewProduct({ ...newProduct, inStock: e.target.checked })}
-                        className="h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                        className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-600"
                       />
-                      <label className="text-sm font-semibold text-gray-700">En Stock</label>
+                      <label htmlFor="inStock" className="text-sm font-medium text-gray-700">
+                        Producto en stock
+                      </label>
                     </div>
                   </div>
-                  <div className="flex justify-end gap-4 mt-8">
+                  <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
                     <button
-                      onClick={() => {
-                        setShowAddModal(false)
-                        setNewProduct({
-                          name: "",
-                          category: "",
-                          price: "",
-                          discount: "",
-                          image: "",
-                          description: "",
-                          characteristics: "",
-                          productCode: "",
-                          inStock: true,
-                        })
-                        setErrors({
-                          name: "",
-                          category: "",
-                          price: "",
-                          discount: "",
-                          image: "",
-                          description: "",
-                          characteristics: "",
-                          productCode: "",
-                        })
-                      }}
-                      className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 shadow-md hover:shadow-lg transition-all duration-300 font-semibold"
+                      onClick={() => setShowAddModal(false)}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                     >
                       Cancelar
                     </button>
                     <button
                       onClick={handleSaveNewProduct}
                       disabled={isLoading}
-                      className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-md hover:shadow-lg transition-all duration-300 font-semibold flex items-center gap-2 ${
-                        isLoading ? "opacity-50 cursor-not-allowed" : ""
+                      className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
+                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
-                      {isLoading && <Loader2 className="w-5 h-5 animate-spin" />}
-                      Guardar Producto
+                      {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {isLoading ? "Guardando..." : "Guardar Producto"}
                     </button>
                   </div>
                 </div>
               </div>
             )}
 
-            {showEditModal && editProduct && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-xl p-8 w-full max-w-lg shadow-lg max-h-[90vh] overflow-y-auto">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">Editar Producto</h3>
-                  <div className="space-y-5">
+            {/* MODAL PARA CREAR CATEGORÍA */}
+            {showCategoryModal && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-900">Nueva Categoría</h3>
+                    <button
+                      onClick={() => setShowCategoryModal(false)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nombre de la Categoría</label>
+                      <input
+                        type="text"
+                        value={newCategory.nombre}
+                        onChange={(e) => setNewCategory({ ...newCategory, nombre: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="Ej: Laptops Gaming"
+                      />
+                      {errors.categoryName && <p className="text-red-600 text-sm mt-1">{errors.categoryName}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Descripción (Opcional)</label>
+                      <textarea
+                        value={newCategory.descripcion}
+                        onChange={(e) => setNewCategory({ ...newCategory, descripcion: e.target.value })}
+                        rows={3}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="Descripción de la categoría..."
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+                    <button
+                      onClick={() => setShowCategoryModal(false)}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleCreateCategory}
+                      disabled={isLoading}
+                      className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
+                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {isLoading ? "Creando..." : "Crear Categoría"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL PARA EDITAR PRODUCTO */}
+            {showEditModal && editProduct && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-900">Editar Producto</h3>
+                    <button
+                      onClick={() => setShowEditModal(false)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nombre del Producto</label>
                       <input
                         type="text"
                         value={newProduct.name}
                         onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                        className={`w-full px-4 py-2 border ${
-                          errors.name ? "border-red-500" : "border-gray-300"
-                        } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all`}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                       />
-                      {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+                      {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
                       <select
                         value={newProduct.category}
                         onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                        className={`w-full px-4 py-2 border ${
-                          errors.category ? "border-red-500" : "border-gray-300"
-                        } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all`}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                       >
-                        <option value="">Seleccionar categoría</option>
-                        {[
-                          "Impresoras",
-                          "Cables",
-                          "Pantallas",
-                          "Gaming",
-                          "Monitores",
-                          "Laptops",
-                          "Cargadores",
-                          "Mouse",
-                          "Teclados",
-                          "Partes de pc",
-                          "Cámaras de Seguridad",
-                        ].map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
+                        <option value="Todos">Seleccionar categoría</option>
+                        {categories.map((category) => (
+                          <option key={category.id_categoria} value={category.nombre}>
+                            {category.nombre}
                           </option>
                         ))}
                       </select>
-                      {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
+                      {errors.category && <p className="text-red-600 text-sm mt-1">{errors.category}</p>}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Precio (S/)</label>
-                      <input
-                        type="number"
-                        value={newProduct.price}
-                        onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                        className={`w-full px-4 py-2 border ${
-                          errors.price ? "border-red-500" : "border-gray-300"
-                        } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all`}
-                        step="any"
-                        min="0.01"
-                        max="10000"
-                        placeholder="Ej: 50000"
-                      />
-                      {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Precio (S/)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={newProduct.price}
+                          onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        />
+                        {errors.price && <p className="text-red-600 text-sm mt-1">{errors.price}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Descuento (%)</label>
+                        <input
+                          type="number"
+                          value={newProduct.discount}
+                          onChange={(e) => setNewProduct({ ...newProduct, discount: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        />
+                        {errors.discount && <p className="text-red-600 text-sm mt-1">{errors.discount}</p>}
+                      </div>
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Descuento (%)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">URL de la Imagen</label>
                       <input
-                        type="number"
-                        value={newProduct.discount}
-                        onChange={(e) => setNewProduct({ ...newProduct, discount: e.target.value })}
-                        className={`w-full px-4 py-2 border ${
-                          errors.discount ? "border-red-500" : "border-gray-300"
-                        } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all`}
-                        placeholder="0-100 (opcional)"
-                        min="0"
-                        max="100"
-                      />
-                      {errors.discount && <p className="text-red-500 text-xs mt-1">{errors.discount}</p>}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">URL de Imagen</label>
-                      <input
-                        type="text"
+                        type="url"
                         value={newProduct.image}
                         onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-                        className={`w-full px-4 py-2 border ${
-                          errors.image ? "border-red-500" : "border-gray-300"
-                        } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all`}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                       />
-                      {errors.image && <p className="text-red-500 text-xs mt-1">{errors.image}</p>}
-                      {newProduct.image && (
-                        <div className="mt-2 border border-gray-300 rounded-lg p-2 bg-gray-50">
-                          <img
-                            src={newProduct.image || "/placeholder.svg"}
-                            alt="Vista previa"
-                            className="w-full h-auto object-contain rounded"
-                            onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
-                          />
-                        </div>
-                      )}
+                      {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
                       <textarea
                         value={newProduct.description}
                         onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                        className={`w-full px-4 py-2 border ${
-                          errors.description ? "border-red-500" : "border-gray-300"
-                        } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all`}
                         rows={3}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                       />
-                      {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
+                      {errors.description && <p className="text-red-600 text-sm mt-1">{errors.description}</p>}
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Características</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Características</label>
                       <textarea
                         value={newProduct.characteristics}
                         onChange={(e) => setNewProduct({ ...newProduct, characteristics: e.target.value })}
-                        className={`w-full px-4 py-2 border ${
-                          errors.characteristics ? "border-red-500" : "border-gray-300"
-                        } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all`}
                         rows={3}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                       />
-                      {errors.characteristics && <p className="text-red-500 text-xs mt-1">{errors.characteristics}</p>}
+                      {errors.characteristics && <p className="text-red-600 text-sm mt-1">{errors.characteristics}</p>}
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Código de Producto</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Código de Producto</label>
                       <input
                         type="text"
                         value={newProduct.productCode}
                         onChange={(e) => setNewProduct({ ...newProduct, productCode: e.target.value })}
-                        className={`w-full px-4 py-2 border ${
-                          errors.productCode ? "border-red-500" : "border-gray-300"
-                        } rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all`}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                       />
-                      {errors.productCode && <p className="text-red-500 text-xs mt-1">{errors.productCode}</p>}
+                      {errors.productCode && <p className="text-red-600 text-sm mt-1">{errors.productCode}</p>}
                     </div>
+                    
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
+                        id="editInStock"
                         checked={newProduct.inStock}
                         onChange={(e) => setNewProduct({ ...newProduct, inStock: e.target.checked })}
-                        className="h-4 w-4 text-red-600 focus:ring-red-600 border-gray-300 rounded"
+                        className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-600"
                       />
-                      <label className="text-sm font-medium text-gray-700">En Stock</label>
+                      <label htmlFor="editInStock" className="text-sm font-medium text-gray-700">
+                        Producto en stock
+                      </label>
                     </div>
                   </div>
-                  <div className="flex justify-end gap-3 mt-6">
+                  <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
                     <button
-                      onClick={() => {
-                        setShowEditModal(false)
-                        setEditProduct(null)
-                        setNewProduct({
-                          name: "",
-                          category: "",
-                          price: "",
-                          discount: "",
-                          image: "",
-                          description: "",
-                          characteristics: "",
-                          productCode: "",
-                          inStock: true,
-                        })
-                        setErrors({
-                          name: "",
-                          category: "",
-                          price: "",
-                          discount: "",
-                          image: "",
-                          description: "",
-                          characteristics: "",
-                          productCode: "",
-                        })
-                      }}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                      onClick={() => setShowEditModal(false)}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                     >
                       Cancelar
                     </button>
                     <button
                       onClick={handleSaveEditProduct}
                       disabled={isLoading}
-                      className={`px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 ${
-                        isLoading ? "opacity-50 cursor-not-allowed" : ""
+                      className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
+                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
                       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                      Guardar
+                      {isLoading ? "Guardando..." : "Actualizar Producto"}
                     </button>
                   </div>
                 </div>
@@ -1331,206 +1488,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                 }`}
               >
                 {toast.message}
-              </div>
-            )}
-
-            {activeTab === "orders" && (
-              <div className="space-y-6">
-                <h3 className="text-2xl font-bold text-gray-900">Pedidos Recientes</h3>
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                  <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-                    <div className="relative w-full sm:w-1/2">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type="text"
-                        placeholder="Buscar por cliente, ID o producto..."
-                        value={orderSearchTerm}
-                        onChange={(e) => setOrderSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all text-lg"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Filter className="text-gray-400 w-5 h-5" />
-                      <select
-                        value={orderFilter}
-                        onChange={(e) => setOrderFilter(e.target.value)}
-                        className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                      >
-                        <option value="Todos">Todos</option>
-                        <option value="Falta Comprobante">Falta Comprobante</option>
-                        <option value="Comprobante Recibido">Comprobante Recibido</option>
-                      </select>
-                    </div>
-                  </div>
-                  {filteredOrders.length === 0 ? (
-                    <p className="text-center text-gray-500 py-8">No se encontraron pedidos.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-gray-50 text-gray-900 border-b border-gray-200">
-                            <th className="p-4 font-semibold">ID Pedido</th>
-                            <th className="p-4 font-semibold">Cliente</th>
-                            <th className="p-4 font-semibold">Productos</th>
-                            <th className="p-4 font-semibold">Fecha</th>
-                            <th className="p-4 font-semibold">Monto</th>
-                            <th className="p-4 font-semibold">Estado</th>
-                            <th className="p-4 font-semibold">Acciones</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredOrders.map((order) => (
-                            <tr key={order.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                              <td className="p-4 text-gray-900 font-medium">{order.id}</td>
-                              <td className="p-4 text-gray-900">{order.customer.name}</td>
-                              <td className="p-4 text-gray-900">{order.items.length} producto(s)</td>
-                              <td className="p-4 text-gray-900">{order.date}</td>
-                              <td className="p-4 text-gray-900 font-medium">S/{order.total.toFixed(2)}</td>
-                              <td className="p-4">
-                                <span
-                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    order.hasReceipt ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                                  }`}
-                                >
-                                  {order.hasReceipt ? "Comprobante Recibido" : "Falta Comprobante"}
-                                </span>
-                              </td>
-                              <td className="p-4">
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => setShowOrderDetails(order)}
-                                    className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium flex items-center gap-1"
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                    Detalles
-                                  </button>
-                                  {!order.hasReceipt && (
-                                    <button
-                                      onClick={() => handleConfirmReceipt(order.id)}
-                                      disabled={isLoading || !order.paymentProof}
-                                      className={`px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center gap-1 ${
-                                        isLoading || !order.paymentProof ? "opacity-50 cursor-not-allowed" : ""
-                                      }`}
-                                    >
-                                      <CheckCircle className="w-4 h-4" />
-                                      Confirmar
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {showOrderDetails && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-xl p-8 w-full max-w-2xl shadow-lg max-h-[90vh] overflow-y-auto">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">Detalles del Pedido #{showOrderDetails.id}</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Cliente</p>
-                      <p className="text-gray-900 font-medium">{showOrderDetails.customer.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">DNI</p>
-                      <p className="text-gray-900">{showOrderDetails.customer.dni}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Correo</p>
-                      <p className="text-gray-900">{showOrderDetails.customer.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Teléfono</p>
-                      <p className="text-gray-900">{showOrderDetails.customer.phone}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Dirección de Envío</p>
-                      <p className="text-gray-900">{showOrderDetails.customer.address}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 mb-2">Productos</p>
-                      <div className="space-y-2">
-                        {showOrderDetails.items.map((item, index) => (
-                          <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                            <img
-                              src={item.product.image || "../assets/images/s-r.png"}
-                              alt={item.product.name}
-                              className="w-16 h-16 object-cover rounded"
-                            />
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">{item.product.name}</p>
-                              <p className="text-sm text-gray-600">Cantidad: {item.quantity}</p>
-                              <p className="text-sm text-gray-600">Descripción: {item.product.description}</p>
-                              <p className="text-sm text-gray-600">Características: {item.product.characteristics || "N/A"}</p>
-                              <p className="text-sm text-gray-600">Código de Producto: {item.product.productCode || "N/A"}</p>
-                            </div>
-                            <p className="font-bold text-red-600">
-                              S/{(item.product.price * item.quantity).toFixed(2)}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Fecha</p>
-                      <p className="text-gray-900">{showOrderDetails.date}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Monto Total</p>
-                      <p className="text-gray-900 font-bold text-xl">S/{showOrderDetails.total.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Estado</p>
-                      <span
-                        className={`text-sm font-medium ${
-                          showOrderDetails.hasReceipt ? "text-green-600" : "text-red-600"
-                        }`}
-                      >
-                        {showOrderDetails.hasReceipt ? "Comprobante Recibido" : "Falta Comprobante"}
-                      </span>
-                    </div>
-                    {showOrderDetails.paymentProof && (
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Comprobante de Pago</p>
-                        <button
-                          onClick={() => handleViewPaymentProof(showOrderDetails.paymentProof!)}
-                          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center gap-1 mt-2"
-                        >
-                          <FileText className="w-4 h-4" />
-                          Ver Comprobante
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex justify-end mt-6">
-                    <button
-                      onClick={() => setShowOrderDetails(null)}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-                    >
-                      Cerrar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "users" && (
-              <div className="space-y-6">
-                <h3 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h3>
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                  <div className="text-center py-8">
-                    <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500 text-lg">
-                      Total de {stats.totalUsers.toLocaleString()} usuarios registrados
-                    </p>
-                  </div>
-                </div>
               </div>
             )}
           </div>

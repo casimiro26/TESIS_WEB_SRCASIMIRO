@@ -7,6 +7,7 @@ interface User {
   id: string;
   name: string;
   email: string;
+  rol: string; // "user" | "admin" | "superadmin"
   isAdmin: boolean;
 }
 
@@ -16,65 +17,198 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Configurar axios base URL y interceptors
+const API_BASE_URL = "https://api-web-egdy.onrender.com";
+axios.defaults.baseURL = API_BASE_URL;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const savedUser = localStorage.getItem("sr-robot-user");
-    const savedToken = localStorage.getItem("sr-robot-token");
-    if (savedUser && savedToken) {
-      setUser(JSON.parse(savedUser));
+  // Función para decodificar JWT
+  const decodeJWT = (token: string) => {
+    try {
+      const payload = token.split('.')[1];
+      const decoded = JSON.parse(atob(payload));
+      return decoded;
+    } catch (error) {
+      console.error("Error decoding JWT:", error);
+      return null;
     }
+  };
+
+  // Función para obtener el perfil del usuario
+  const fetchUserProfile = async (token: string) => {
+    try {
+      const response = await axios.get("/api/perfil", {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data.perfil;
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      return null;
+    }
+  };
+
+  // Configurar interceptor para enviar token en todas las requests
+  useEffect(() => {
+    const interceptor = axios.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem("sr-robot-token");
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.request.eject(interceptor);
+    };
+  }, []);
+
+  // Interceptor para manejar errores de autenticación
+  useEffect(() => {
+    const responseInterceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          // Token inválido o expirado
+          logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.response.eject(responseInterceptor);
+    };
+  }, []);
+
+  // Verificar token al cargar
+  useEffect(() => {
+    const checkAuth = async () => {
+      const savedUser = localStorage.getItem("sr-robot-user");
+      const savedToken = localStorage.getItem("sr-robot-token");
+      
+      if (savedUser && savedToken) {
+        // Verificar si el token es válido (no expirado)
+        const decoded = decodeJWT(savedToken);
+        if (decoded && decoded.exp * 1000 > Date.now()) {
+          // Verificar que el perfil aún existe en el backend
+          try {
+            const userProfile = await fetchUserProfile(savedToken);
+            if (userProfile) {
+              setUser(JSON.parse(savedUser));
+            } else {
+              // Perfil no encontrado en el backend
+              logout();
+            }
+          } catch (error) {
+            // Error al verificar perfil
+            logout();
+          }
+        } else {
+          // Token expirado
+          logout();
+        }
+      }
+      setLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const response = await axios.post("https://api-web-egdy.onrender.com/api/auth/iniciar-sesion", {
+      setLoading(true);
+      const response = await axios.post("/api/auth/iniciar-sesion", {
         correo: email,
         contrasena: password,
       });
+      
       const { token, rol } = response.data;
+      
+      if (!token) {
+        throw new Error("No se recibió token del servidor");
+      }
+
+      // Obtener el perfil completo del usuario
+      const userProfile = await fetchUserProfile(token);
+      if (!userProfile) {
+        throw new Error("No se pudo obtener el perfil del usuario");
+      }
+
+      const isAdmin = rol === "admin" || rol === "superadmin";
+      
       const userData: User = {
-        id: token.split(".")[1], // Simplificación, podrías usar el ID real desde el token
-        name: email.split("@")[0],
-        email,
-        isAdmin: rol === "admin",
+        id: userProfile._id || userProfile.id_usuario?.toString(),
+        name: userProfile.nombreCompleto,
+        email: userProfile.correo,
+        rol,
+        isAdmin,
       };
+      
       setUser(userData);
       localStorage.setItem("sr-robot-user", JSON.stringify(userData));
       localStorage.setItem("sr-robot-token", token);
+      
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al iniciar sesión:", error);
+      if (error.response?.data?.mensaje) {
+        alert(error.response.data.mensaje);
+      } else {
+        alert("Error al iniciar sesión. Intenta nuevamente.");
+      }
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
   const register = async (name: string, email: string, password: string): Promise<boolean> => {
     try {
-      const response = await axios.post("https://api-web-egdy.onrender.com/api/auth/registrar", {
+      setLoading(true);
+      
+      // Validación adicional para correos corporativos
+      if (email.endsWith("@srrobot.com")) {
+        alert("Los correos @srrobot.com son solo para administradores. Usa un correo personal.");
+        return false;
+      }
+
+      const response = await axios.post("/api/auth/registrar-cliente", {
         nombreCompleto: name,
         correo: email,
         contrasena: password,
       });
-      const { rol } = response.data;
-      const userData: User = {
-        id: `user-${Date.now()}`, // Temporal, la API no devuelve un ID único
-        name,
-        email,
-        isAdmin: rol === "admin",
-      };
-      setUser(userData);
-      localStorage.setItem("sr-robot-user", JSON.stringify(userData));
-      // Opcional: Iniciar sesión automáticamente tras registro
-      return login(email, password);
-    } catch (error) {
-      console.error("Error al registrarse:", error);
+      
+      if (response.data.mensaje) {
+        // Registro exitoso, ahora iniciar sesión automáticamente
+        return await login(email, password);
+      }
+      
       return false;
+    } catch (error: any) {
+      console.error("Error al registrarse:", error);
+      if (error.response?.data?.mensaje) {
+        alert(error.response.data.mensaje);
+      } else {
+        alert("Error al registrarse. Intenta nuevamente.");
+      }
+      return false;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -90,6 +224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     register,
     logout,
+    loading,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
