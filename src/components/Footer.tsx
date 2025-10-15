@@ -1,15 +1,17 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, Send, MessageCircle, Eye, Heart, ShoppingCart, Bot } from "lucide-react"
 import { useCart } from "../context/CartContext"
 import { useAuth } from "../context/AuthContext"
-import { products } from "../data/products"
+import { fetchProducts, fetchCategories } from "../data/products" // Cambiado a fetch dinámico
+
+const API_BASE_URL = "http://localhost:3000" // Ajusta si deployas el chatbot API (o usa tu API principal si integras)
 
 export const Footer: React.FC = () => {
   const { favorites, items } = useCart()
-  const { user } = useAuth()
+  const { user, token } = useAuth() // Asume que AuthContext expone token
 
   const paymentMethods = [
     { name: "Visa", icon: "../assets/images/visa.png", color: "text-blue-600" },
@@ -31,16 +33,22 @@ export const Footer: React.FC = () => {
   ]
 
   const [isChatOpen, setIsChatOpen] = useState(false)
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      text: "¡Hola! Soy el asistente virtual de Sr. Robot. ¿En qué puedo ayudarte hoy?",
-      isBot: true,
-      timestamp: new Date(),
-    },
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
   const [inputMessage, setInputMessage] = useState("")
   const [activeView, setActiveView] = useState<"chat" | "products" | "favorites" | "cart">("chat")
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [dynamicProducts, setDynamicProducts] = useState<any[]>([]) // Estado para productos de DB
+  const [dynamicCategories, setDynamicCategories] = useState<string[]>([]) // Estado para categorías de DB
+  const [selectedCategory, setSelectedCategory] = useState<string>("Todas") // Para filtro
+  const [productsLoading, setProductsLoading] = useState(false) // Loading para products
+
+  interface Message {
+    id: number
+    text: string
+    isBot: boolean
+    timestamp: Date
+  }
 
   const quickResponses = [
     "¿Tienen auriculares gaming?",
@@ -50,10 +58,87 @@ export const Footer: React.FC = () => {
     "Política de devoluciones",
   ]
 
-  const handleSendMessage = () => {
+  // Fetch bienvenida inicial al abrir chat
+  useEffect(() => {
+    if (isChatOpen) {
+      fetchBienvenida()
+    }
+  }, [isChatOpen])
+
+  // Fetch productos y categorías dinámicos cuando se abre products tab
+  useEffect(() => {
+    if (activeView === "products") {
+      loadProductsAndCategories()
+    }
+  }, [activeView, token])
+
+  const loadProductsAndCategories = async () => {
+    setProductsLoading(true)
+    try {
+      // Fetch paralelo para eficiencia
+      const [productsRes, categoriesRes] = await Promise.all([
+        fetchProducts(token || undefined),
+        fetchCategories(token || undefined)
+      ])
+      setDynamicProducts(productsRes)
+      setDynamicCategories(["Todas", ...categoriesRes]) // Agrega "Todas" para filtro all
+      console.log('Productos de DB cargados:', productsRes) // Debug
+      console.log('Categorías de DB cargadas:', categoriesRes) // Debug
+    } catch (err) {
+      console.error('Error loading products/categories:', err)
+      // No set error aquí, ya que fallback maneja
+    } finally {
+      setProductsLoading(false)
+    }
+  }
+
+  const fetchBienvenida = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/bienvenida`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+      if (response.ok) {
+        const { response: botResponse } = await response.json()
+        setMessages([
+          {
+            id: 1,
+            text: botResponse,
+            isBot: true,
+            timestamp: new Date(),
+          },
+        ])
+      } else {
+        // Fallback si API falla
+        setMessages([
+          {
+            id: 1,
+            text: "¡Hola! Soy Sr. Robot, el asistente virtual de la tienda tecnológica Sr Robot. 😊 Estoy aquí para ayudarte con todo sobre nuestros productos: laptops, smartphones, tablets, accesorios y más. ¿En qué puedo ayudarte hoy? Por ejemplo, puedes preguntar por precios en soles peruanos (S/), especificaciones o categorías. ¡Dime!",
+            isBot: true,
+            timestamp: new Date(),
+          },
+        ])
+      }
+    } catch (err) {
+      console.error("Error fetching bienvenida:", err)
+      // Fallback mejorado
+      setMessages([
+        {
+          id: 1,
+          text: "¡Hola! Soy Sr. Robot, el asistente virtual de la tienda tecnológica Sr Robot. 😊 Estoy aquí para ayudarte con todo sobre nuestros productos: laptops, smartphones, tablets, accesorios y más. ¿En qué puedo ayudarte hoy? Por ejemplo, puedes preguntar por precios en soles peruanos (S/), especificaciones o categorías. ¡Dime!",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ])
+    }
+  }
+
+  const handleSendMessage = async () => {
     if (!inputMessage.trim()) return
 
-    const userMessage = {
+    const userMessage: Message = {
       id: messages.length + 1,
       text: inputMessage,
       isBot: false,
@@ -61,43 +146,56 @@ export const Footer: React.FC = () => {
     }
 
     setMessages((prev) => [...prev, userMessage])
+    setIsLoading(true)
+    setError(null)
 
-    setTimeout(() => {
-      let botResponseText =
-        "Lo siento, no entendí tu pregunta. Por favor, intenta de nuevo o selecciona una opción de las preguntas rápidas."
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: inputMessage }),
+      })
 
-      if (inputMessage.toLowerCase().includes("auriculares gaming")) {
-        botResponseText =
-          "¡Sí, tenemos auriculares gaming! Ofrecemos una variedad de marcas como Razer, HyperX y Logitech. ¿Quieres ver algunos modelos específicos?"
-      } else if (inputMessage.toLowerCase().includes("envíos")) {
-        botResponseText =
-          "Ofrecemos envíos gratis en compras superiores a $99. Los tiempos de entrega varían entre 2-5 días hábiles en Huánuco, Perú. ¿Necesitas más detalles?"
-      } else if (inputMessage.toLowerCase().includes("rastrear mi pedido")) {
-        botResponseText =
-          'Para rastrear tu pedido, por favor ingresa el número de seguimiento en nuestra página de "Rastreo" o contáctanos con tu número de orden.'
-      } else if (inputMessage.toLowerCase().includes("métodos de pago")) {
-        botResponseText =
-          "Aceptamos Visa, Bcp, PayPal y Interbank. Todos los pagos son seguros con encriptación SSL."
-      } else if (inputMessage.toLowerCase().includes("devoluciones")) {
-        botResponseText =
-          "Nuestra política de devoluciones permite cambios o reembolsos dentro de los 30 días posteriores a la compra, siempre que el producto esté en perfectas condiciones."
+      if (response.ok) {
+        const { response: botResponse } = await response.json()
+        const botMessage: Message = {
+          id: messages.length + 2,
+          text: botResponse,
+          isBot: true,
+          timestamp: new Date(),
+        }
+        setMessages((prev) => [...prev, botMessage])
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-
-      const botResponse = {
+    } catch (err: any) {
+      console.error("Error en chat API:", err)
+      setError("Lo siento, hubo un error al procesar tu mensaje. Intenta de nuevo o contacta por WhatsApp.")
+      const errorMessage: Message = {
         id: messages.length + 2,
-        text: botResponseText,
+        text: "Lo siento, no pude procesar tu consulta en este momento. 😔 ¿Puedes reformularla o prefieres chatear por WhatsApp?",
         isBot: true,
         timestamp: new Date(),
       }
-      setMessages((prev) => [...prev, botResponse])
-    }, 1000)
-
-    setInputMessage("")
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+      setInputMessage("")
+    }
   }
 
   const handleQuickResponse = (response: string) => {
     setInputMessage(response)
+    // Auto-send después de un breve delay
+    setTimeout(() => handleSendMessage(), 500)
   }
+
+  // Filtrar productos por categoría seleccionada
+  const filteredProducts = dynamicProducts.filter(product => 
+    selectedCategory === "Todas" || product.category === selectedCategory
+  )
 
   return (
     <footer className="bg-gray-900 dark:bg-gray-950 text-white relative">
@@ -117,7 +215,7 @@ export const Footer: React.FC = () => {
             </div>
             <p className="text-sm text-gray-400 animate-fadeIn">
               Tu tienda de confianza para accesorios tecnológicos de última generación. Calidad garantizada y precios
-              competitivos.
+              competitivos en soles peruanos (S/.).
             </p>
             <div className="flex gap-4 mt-2">
               {user?.isAdmin ? null : (
@@ -198,7 +296,7 @@ export const Footer: React.FC = () => {
                 <span className="text-green-500">🛡️</span> Compra Segura
               </li>
               <li>
-                <span className="text-blue-500">🚚</span> Envío Gratis + $99
+                <span className="text-blue-500">🚚</span> Envío Gratis + S/. 99
               </li>
               <li>
                 <span className="text-purple-500">🔒</span> Pago Seguro
@@ -359,6 +457,20 @@ export const Footer: React.FC = () => {
                         </div>
                       </div>
                     ))}
+                    {isLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg text-sm text-gray-500">
+                          Sr. Robot está escribiendo...
+                        </div>
+                      </div>
+                    )}
+                    {error && (
+                      <div className="flex justify-start">
+                        <div className="bg-red-100 dark:bg-red-900 p-3 rounded-lg text-sm text-red-600 dark:text-red-400">
+                          {error}
+                        </div>
+                      </div>
+                    )}
                     {/* Quick Responses */}
                     <div className="space-y-2 mt-3">
                       <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Preguntas rápidas:</p>
@@ -366,7 +478,8 @@ export const Footer: React.FC = () => {
                         <button
                           key={index}
                           onClick={() => handleQuickResponse(response)}
-                          className="w-full text-left text-sm p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
+                          disabled={isLoading}
+                          className="w-full text-left text-sm p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-700 dark:text-gray-300 disabled:opacity-50"
                         >
                           {response}
                         </button>
@@ -378,23 +491,44 @@ export const Footer: React.FC = () => {
                 {activeView === "products" && (
                   <div className="space-y-3">
                     <h4 className="font-semibold text-gray-900 dark:text-white">Productos Destacados</h4>
-                    {products.slice(0, 6).map((product) => (
-                      <div
-                        key={product.id}
-                        className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                    {/* Filtro por categoría */}
+                    <div className="flex flex-col space-y-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtrar por categoría:</label>
+                      <select
+                        value={selectedCategory}
+                        onChange={(e) => setSelectedCategory(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                       >
-                        <img
-                          src={product.image || "/placeholder.svg"}
-                          alt={product.name}
-                          className="w-12 h-12 rounded-lg object-cover"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{product.category}</p>
-                          <p className="text-sm font-bold text-red-600">${product.price}</p>
+                        {dynamicCategories.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {productsLoading ? (
+                      <p className="text-center text-gray-500 dark:text-gray-400 py-8">Cargando productos...</p>
+                    ) : filteredProducts.length === 0 ? (
+                      <p className="text-center text-gray-500 dark:text-gray-400 py-8">No hay productos en esta categoría</p>
+                    ) : (
+                      filteredProducts.slice(0, 6).map((product) => (
+                        <div
+                          key={product.id}
+                          className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                        >
+                          <img
+                            src={product.image || "/placeholder.svg"}
+                            alt={product.name}
+                            className="w-12 h-12 rounded-lg object-cover"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.name}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{product.category}</p>
+                            <p className="text-sm font-bold text-red-600">S/. {product.price}</p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 )}
 
@@ -416,7 +550,7 @@ export const Footer: React.FC = () => {
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.name}</p>
-                            <p className="text-sm font-bold text-red-600">${product.price}</p>
+                            <p className="text-sm font-bold text-red-600">S/. {product.price}</p>
                           </div>
                         </div>
                       ))
@@ -443,7 +577,7 @@ export const Footer: React.FC = () => {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">Cantidad: {item.quantity}</p>
-                            <p className="text-sm font-bold text-red-600">${(item.price * item.quantity).toFixed(2)}</p>
+                            <p className="text-sm font-bold text-red-600">S/. {(item.price * item.quantity).toFixed(2)}</p>
                           </div>
                         </div>
                       ))
@@ -460,14 +594,15 @@ export const Footer: React.FC = () => {
                       type="text"
                       value={inputMessage}
                       onChange={(e) => setInputMessage(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                      onKeyPress={(e) => e.key === "Enter" && !isLoading && handleSendMessage()}
                       placeholder="Escribe tu consulta..."
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      disabled={isLoading}
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm disabled:opacity-50"
                     />
                     <button
                       onClick={handleSendMessage}
-                      disabled={!inputMessage.trim()}
-                      className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white px-3 py-2 rounded-lg transition-colors"
+                      disabled={!inputMessage.trim() || isLoading}
+                      className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white px-3 py-2 rounded-lg transition-colors disabled:cursor-not-allowed"
                     >
                       <Send className="w-4 h-4" />
                     </button>

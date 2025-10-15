@@ -22,6 +22,7 @@ import {
   Tag,
   Plus,
   Edit,
+  Image as ImageIcon,
 } from "lucide-react"
 import {
   Chart as ChartJS,
@@ -119,6 +120,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [showEditCategoryModal, setShowEditCategoryModal] = useState(false)
   const [newProduct, setNewProduct] = useState({
     name: "",
     category: "",
@@ -135,6 +137,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     descripcion: ""
   })
   const [editProduct, setEditProduct] = useState<Product | null>(null)
+  const [editCategory, setEditCategory] = useState<Category | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [errors, setErrors] = useState({
     name: "",
@@ -154,6 +157,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [orderFilter, setOrderFilter] = useState("Todos")
   const [productFilter, setProductFilter] = useState("Todos")
   const [refreshing, setRefreshing] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string>("")
 
   // Cargar categorías desde la API REAL
   const loadCategories = async () => {
@@ -245,6 +249,85 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     }
   }
 
+  // Editar categoría - CONECTADO A API REAL
+  const handleEditCategory = async () => {
+    if (!editCategory || !editCategory.nombre.trim()) {
+      setErrors(prev => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const token = localStorage.getItem("sr-robot-token")
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${editCategory.id_categoria}`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          nombre: editCategory.nombre,
+          descripcion: editCategory.descripcion
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ mensaje: "Error updating category" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
+      }
+
+      // Recargar categorías desde la API
+      await loadCategories()
+      
+      setShowEditCategoryModal(false)
+      setEditCategory(null)
+      setToast({ message: "Categoría actualizada con éxito", type: "success" })
+    } catch (error: any) {
+      console.error("Error updating category:", error)
+      setToast({ message: error.message || "Error al actualizar categoría", type: "error" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Eliminar categoría - CONECTADO A API REAL
+  const handleDeleteCategory = async (categoryId: number) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar esta categoría?")) {
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const token = localStorage.getItem("sr-robot-token")
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${categoryId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ mensaje: "Error deleting category" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
+      }
+
+      // Recargar categorías desde la API
+      await loadCategories()
+      
+      setToast({ message: "Categoría eliminada con éxito", type: "success" })
+    } catch (error: any) {
+      console.error("Error deleting category:", error)
+      setToast({ message: error.message || "Error al eliminar categoría", type: "error" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Mostrar errores del StoreContext
   useEffect(() => {
     if (storeError) {
@@ -266,8 +349,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   // Estadísticas REALES basadas en datos
   const stats = useMemo(() => {
     // Clientes activos - ESTE DATO DEBE VENIR DE TU API
-    // Por ahora usamos un valor fijo hasta que implementes el endpoint de usuarios
-    const activeCustomers = 1 // Cambiado de 856 a 1 según tu comentario
+    const activeCustomers = 1
     
     // Productos activos (en stock)
     const activeProducts = products.filter(p => p.inStock).length
@@ -440,6 +522,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
 
   const handleAddProduct = () => {
     setShowAddModal(true)
+    setImagePreview("")
   }
 
   const handleEditProduct = (product: Product) => {
@@ -455,6 +538,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       productCode: product.productCode || "",
       inStock: product.inStock,
     })
+    setImagePreview(product.image)
     setShowEditModal(true)
   }
 
@@ -473,6 +557,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     }
   }
 
+  // CORREGIDO: Función para guardar producto - SIN REDIRECCIÓN
   const handleSaveNewProduct = async () => {
     if (!validateForm()) return
 
@@ -498,10 +583,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       featured: false,
     }
 
+    console.log("🔄 Iniciando creación de producto...")
+
     try {
       const success = await addProduct(productData)
+      console.log("✅ Resultado de addProduct:", success)
       
       if (success) {
+        // CORREGIDO: Solo cerrar modal y mostrar mensaje, NO redirigir
         setShowAddModal(false)
         setNewProduct({
           name: "",
@@ -514,6 +603,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
           productCode: "",
           inStock: true,
         })
+        setImagePreview("")
         setErrors({
           name: "",
           category: "",
@@ -525,12 +615,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
           productCode: "",
           categoryName: ""
         })
-        setToast({ message: "Producto agregado con éxito", type: "success" })
+        setToast({ message: "✅ Producto creado con éxito", type: "success" })
+        console.log("✅ Producto creado exitosamente")
+        
+        // Recargar productos para asegurar que se vea en la lista
+        await loadProducts()
       } else {
-        setToast({ message: "Error al agregar el producto", type: "error" })
+        setToast({ message: "❌ Error al crear el producto", type: "error" })
+        console.log("❌ Error al crear producto")
       }
     } catch (error) {
-      setToast({ message: "Error al agregar el producto", type: "error" })
+      console.error("❌ Error en handleSaveNewProduct:", error)
+      setToast({ message: "❌ Error al crear el producto", type: "error" })
     } finally {
       setIsLoading(false)
       setTimeout(() => setToast(null), 3000)
@@ -576,6 +672,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
           productCode: "",
           inStock: true,
         })
+        setImagePreview("")
         setErrors({
           name: "",
           category: "",
@@ -654,6 +751,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       default:
         return <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">Actividad</span>
     }
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setNewProduct({ ...newProduct, image: value })
+    setImagePreview(value)
   }
 
   return (
@@ -1078,7 +1181,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
-            {/* GESTIÓN DE CATEGORÍAS */}
+            {/* GESTIÓN DE CATEGORÍAS - CORREGIDO CON EDITAR/ELIMINAR */}
             {activeTab === "categories" && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -1095,7 +1198,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {categories.map((category) => (
-                      <div key={category.id_categoria} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                      <div key={category.id_categoria} className="bg-gray-50 rounded-lg p-6 border border-gray-200 hover:shadow-md transition-shadow">
                         <div className="flex items-center gap-3 mb-3">
                           <Tag className="w-6 h-6 text-red-600" />
                           <h4 className="text-lg font-semibold text-gray-900">{category.nombre}</h4>
@@ -1107,9 +1210,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                           <span className="text-xs text-gray-500">
                             ID: {category.id_categoria}
                           </span>
-                          <button className="text-red-600 hover:text-red-700 text-sm font-medium">
-                            Editar
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setEditCategory(category)
+                                setShowEditCategoryModal(true)
+                              }}
+                              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCategory(category.id_categoria)}
+                              disabled={isLoading}
+                              className="text-red-600 hover:text-red-700 text-sm font-medium"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1126,6 +1244,156 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
+            {/* PEDIDOS - MEJORADO */}
+            {activeTab === "orders" && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-gray-900">Gestión de Pedidos</h3>
+                </div>
+                
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+                    <div className="relative w-full sm:w-1/3">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <input
+                        type="text"
+                        placeholder="Buscar pedidos por cliente o ID..."
+                        value={orderSearchTerm}
+                        onChange={(e) => setOrderSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Filter className="text-gray-400 w-5 h-5" />
+                      <select
+                        value={orderFilter}
+                        onChange={(e) => setOrderFilter(e.target.value)}
+                        className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      >
+                        <option value="Todos">Todos</option>
+                        <option value="Comprobante Recibido">Comprobante Recibido</option>
+                        <option value="Falta Comprobante">Falta Comprobante</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {filteredOrders.length === 0 ? (
+                    <div className="text-center py-12">
+                      <ShoppingBag className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 text-lg">No hay pedidos registrados</p>
+                      <p className="text-gray-400 text-sm mt-2">Los pedidos aparecerán aquí cuando los clientes realicen compras</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 text-gray-900 border-b border-gray-200">
+                            <th className="p-4 font-semibold">ID</th>
+                            <th className="p-4 font-semibold">Cliente</th>
+                            <th className="p-4 font-semibold">Fecha</th>
+                            <th className="p-4 font-semibold">Total</th>
+                            <th className="p-4 font-semibold">Estado</th>
+                            <th className="p-4 font-semibold">Comprobante</th>
+                            <th className="p-4 font-semibold">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredOrders.map((order) => (
+                            <tr key={order.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                              <td className="p-4 text-gray-900 font-medium">#{order.id}</td>
+                              <td className="p-4 text-gray-900">
+                                <div>
+                                  <p className="font-medium">{order.customer.name}</p>
+                                  <p className="text-sm text-gray-500">{order.customer.email}</p>
+                                </div>
+                              </td>
+                              <td className="p-4 text-gray-900">{order.date}</td>
+                              <td className="p-4 text-gray-900 font-medium">S/{order.total.toFixed(2)}</td>
+                              <td className="p-4">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    order.status === "delivered" 
+                                      ? "bg-green-100 text-green-800"
+                                      : order.status === "shipped"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : order.status === "confirmed"
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : "bg-gray-100 text-gray-800"
+                                  }`}
+                                >
+                                  {order.status === "pending" && "Pendiente"}
+                                  {order.status === "confirmed" && "Confirmado"}
+                                  {order.status === "shipped" && "Enviado"}
+                                  {order.status === "delivered" && "Entregado"}
+                                </span>
+                              </td>
+                              <td className="p-4">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    order.hasReceipt ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                                  }`}
+                                >
+                                  {order.hasReceipt ? "Recibido" : "Pendiente"}
+                                </span>
+                              </td>
+                              <td className="p-4">
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setShowOrderDetails(order)}
+                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center gap-1"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                    Ver
+                                  </button>
+                                  {!order.hasReceipt && (
+                                    <button
+                                      onClick={() => handleConfirmReceipt(order.id)}
+                                      disabled={isLoading}
+                                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center gap-1"
+                                    >
+                                      <CheckCircle className="w-4 h-4" />
+                                      Confirmar
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* USUARIOS - MEJORADO */}
+            {activeTab === "users" && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h3>
+                </div>
+                
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <div className="text-center py-12">
+                    <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500 text-lg">Módulo de Usuarios en Desarrollo</p>
+                    <p className="text-gray-400 text-sm mt-2">
+                      Esta funcionalidad estará disponible próximamente. 
+                      Aquí podrás gestionar usuarios, roles y permisos.
+                    </p>
+                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200 max-w-md mx-auto">
+                      <p className="text-blue-800 text-sm">
+                        <strong>Próximamente:</strong> Ver lista de usuarios, editar roles, 
+                        gestionar permisos y ver estadísticas de uso.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODALES... (se mantienen igual que antes pero CORREGIDOS) */}
             {/* MODAL PARA AGREGAR PRODUCTO */}
             {showAddModal && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1133,7 +1401,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                   <div className="flex items-center justify-between p-6 border-b border-gray-200">
                     <h3 className="text-xl font-bold text-gray-900">Agregar Nuevo Producto</h3>
                     <button
-                      onClick={() => setShowAddModal(false)}
+                      onClick={() => {
+                        setShowAddModal(false)
+                        setImagePreview("")
+                      }}
                       className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                     >
                       <X className="w-5 h-5" />
@@ -1159,7 +1430,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                       >
-                        <option value="Todos">Seleccionar categoría</option>
+                        <option value="">Seleccionar categoría</option>
                         {categories.map((category) => (
                           <option key={category.id_categoria} value={category.nombre}>
                             {category.nombre}
@@ -1197,14 +1468,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">URL de la Imagen</label>
+                      <div className="flex items-center gap-2 mb-2">
+                        <ImageIcon className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-500">Ingresa la URL de la imagen</span>
+                      </div>
                       <input
                         type="url"
                         value={newProduct.image}
-                        onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                        onChange={handleImageChange}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                         placeholder="https://ejemplo.com/imagen.jpg"
                       />
                       {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
+                      
+                      {/* VISTA PREVIA DE LA IMAGEN */}
+                      {imagePreview && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-gray-700 mb-2">Vista previa:</p>
+                          <div className="relative w-32 h-32 border border-gray-300 rounded-lg overflow-hidden">
+                            <img
+                              src={imagePreview}
+                              alt="Vista previa"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = "/placeholder.svg"
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                     
                     <div>
@@ -1258,7 +1550,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                   </div>
                   <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
                     <button
-                      onClick={() => setShowAddModal(false)}
+                      onClick={() => {
+                        setShowAddModal(false)
+                        setImagePreview("")
+                      }}
                       className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                     >
                       Cancelar
@@ -1271,7 +1566,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       }`}
                     >
                       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                      {isLoading ? "Guardando..." : "Guardar Producto"}
+                      {isLoading ? "Creando..." : "Crear Producto"}
                     </button>
                   </div>
                 </div>
@@ -1336,14 +1631,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
-            {/* MODAL PARA EDITAR PRODUCTO */}
-            {showEditModal && editProduct && (
+            {/* MODAL PARA EDITAR CATEGORÍA - NUEVO */}
+            {showEditCategoryModal && editCategory && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
                   <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                    <h3 className="text-xl font-bold text-gray-900">Editar Producto</h3>
+                    <h3 className="text-xl font-bold text-gray-900">Editar Categoría</h3>
                     <button
-                      onClick={() => setShowEditModal(false)}
+                      onClick={() => setShowEditCategoryModal(false)}
                       className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                     >
                       <X className="w-5 h-5" />
@@ -1351,130 +1646,119 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                   </div>
                   <div className="p-6 space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Nombre del Producto</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nombre de la Categoría</label>
                       <input
                         type="text"
-                        value={newProduct.name}
-                        onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                        value={editCategory.nombre}
+                        onChange={(e) => setEditCategory({ ...editCategory, nombre: e.target.value })}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                       />
-                      {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
                     </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
-                      <select
-                        value={newProduct.category}
-                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                      >
-                        <option value="Todos">Seleccionar categoría</option>
-                        {categories.map((category) => (
-                          <option key={category.id_categoria} value={category.nombre}>
-                            {category.nombre}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.category && <p className="text-red-600 text-sm mt-1">{errors.category}</p>}
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Precio (S/)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={newProduct.price}
-                          onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                        />
-                        {errors.price && <p className="text-red-600 text-sm mt-1">{errors.price}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Descuento (%)</label>
-                        <input
-                          type="number"
-                          value={newProduct.discount}
-                          onChange={(e) => setNewProduct({ ...newProduct, discount: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                        />
-                        {errors.discount && <p className="text-red-600 text-sm mt-1">{errors.discount}</p>}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">URL de la Imagen</label>
-                      <input
-                        type="url"
-                        value={newProduct.image}
-                        onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                      />
-                      {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
-                    </div>
-                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
                       <textarea
-                        value={newProduct.description}
-                        onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+                        value={editCategory.descripcion}
+                        onChange={(e) => setEditCategory({ ...editCategory, descripcion: e.target.value })}
                         rows={3}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                       />
-                      {errors.description && <p className="text-red-600 text-sm mt-1">{errors.description}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Características</label>
-                      <textarea
-                        value={newProduct.characteristics}
-                        onChange={(e) => setNewProduct({ ...newProduct, characteristics: e.target.value })}
-                        rows={3}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                      />
-                      {errors.characteristics && <p className="text-red-600 text-sm mt-1">{errors.characteristics}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Código de Producto</label>
-                      <input
-                        type="text"
-                        value={newProduct.productCode}
-                        onChange={(e) => setNewProduct({ ...newProduct, productCode: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                      />
-                      {errors.productCode && <p className="text-red-600 text-sm mt-1">{errors.productCode}</p>}
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="editInStock"
-                        checked={newProduct.inStock}
-                        onChange={(e) => setNewProduct({ ...newProduct, inStock: e.target.checked })}
-                        className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-600"
-                      />
-                      <label htmlFor="editInStock" className="text-sm font-medium text-gray-700">
-                        Producto en stock
-                      </label>
                     </div>
                   </div>
                   <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
                     <button
-                      onClick={() => setShowEditModal(false)}
+                      onClick={() => setShowEditCategoryModal(false)}
                       className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                     >
                       Cancelar
                     </button>
                     <button
-                      onClick={handleSaveEditProduct}
+                      onClick={handleEditCategory}
                       disabled={isLoading}
                       className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
                         isLoading ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
                       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                      {isLoading ? "Guardando..." : "Actualizar Producto"}
+                      {isLoading ? "Actualizando..." : "Actualizar Categoría"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL PARA DETALLES DE PEDIDO */}
+            {showOrderDetails && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-900">Detalles del Pedido #{showOrderDetails.id}</h3>
+                    <button
+                      onClick={() => setShowOrderDetails(null)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Información del Cliente</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Nombre</p>
+                          <p className="font-medium">{showOrderDetails.customer.name}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Email</p>
+                          <p className="font-medium">{showOrderDetails.customer.email}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Teléfono</p>
+                          <p className="font-medium">{showOrderDetails.customer.phone}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">DNI</p>
+                          <p className="font-medium">{showOrderDetails.customer.dni}</p>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <p className="text-sm text-gray-600">Dirección</p>
+                        <p className="font-medium">{showOrderDetails.customer.address}</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Productos</h4>
+                      <div className="space-y-3">
+                        {showOrderDetails.items.map((item, index) => (
+                          <div key={index} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                            <img
+                              src={item.product.image || "/placeholder.svg"}
+                              alt={item.product.name}
+                              className="w-12 h-12 object-cover rounded"
+                            />
+                            <div className="flex-1">
+                              <p className="font-medium">{item.product.name}</p>
+                              <p className="text-sm text-gray-600">Cantidad: {item.quantity}</p>
+                            </div>
+                            <p className="font-medium">S/{item.product.price * item.quantity}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-semibold">Total</span>
+                        <span className="text-2xl font-bold text-red-600">S/{showOrderDetails.total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+                    <button
+                      onClick={() => setShowOrderDetails(null)}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cerrar
                     </button>
                   </div>
                 </div>

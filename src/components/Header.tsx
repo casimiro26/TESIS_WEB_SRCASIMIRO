@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="bg-gradient-to-r from-red-700 to-red-500 text-white py-2 px-4">
           <div className="max-w-7xl mx-auto flex items-center justify-between text-sm">
             <div className="flex items-center gap-4">
-              <span>🎁 Envío gratis en compras mayores a $500</span>
+              <span>🎁 Envío gratis en compras mayores a S/. 500</span>
             </div>
             <div className="hidden md:flex items-center gap-4">
               <span>📞 Soporte: +1 234 567 890</span>

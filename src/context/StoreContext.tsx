@@ -75,7 +75,6 @@ const normalizeProductFromAPI = (apiProduct: any): Product => {
 
 // Función para normalizar producto a formato API - CORREGIDA
 const normalizeProductToAPI = (product: Omit<Product, "id"> | Partial<Product>) => {
-  // Asegurar que los nombres de campos coincidan con tu API
   return {
     name: product.name,
     category: product.category,
@@ -198,7 +197,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const productData = normalizeProductToAPI(product)
       
-      console.log("Enviando datos del producto:", productData) // Debug
+      console.log("🔄 Enviando producto a la API:", productData)
 
       const response = await fetch("https://api-web-egdy.onrender.com/api/productos", {
         method: "POST",
@@ -215,34 +214,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ mensaje: "Error creating product" }))
-        console.error("Error response from server:", errorData) // Debug
+        console.error("❌ Error del servidor:", errorData)
         throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
       }
 
       const responseData = await response.json()
-      console.log("Respuesta del servidor:", responseData) // Debug
+      console.log("✅ Respuesta del servidor:", responseData)
       
       // Tu API puede devolver el producto en responseData.product o directamente
       const productFromResponse = responseData.product || responseData
       
       if (!productFromResponse) {
+        console.error("❌ No hay datos de producto en la respuesta")
         throw new Error("Invalid response from server: no product data")
       }
 
       const normalizedProduct = normalizeProductFromAPI(productFromResponse)
+      console.log("✅ Producto normalizado:", normalizedProduct)
       
-      // Actualizar estado local
-      setProducts(prev => [...prev, normalizedProduct])
+      // Actualizar estado local - CORREGIDO: usar función de actualización
+      setProducts(prev => {
+        const updatedProducts = [...prev, normalizedProduct]
+        console.log("🔄 Actualizando productos:", updatedProducts.length)
+        return updatedProducts
+      })
       
       // Actualizar localStorage
       if (typeof window !== "undefined") {
         const updatedProducts = [...products, normalizedProduct]
         localStorage.setItem("sr-robot-products", JSON.stringify(updatedProducts))
+        console.log("💾 Guardado en localStorage")
       }
       
       return true
     } catch (err: any) {
-      console.error("Error adding product:", err)
+      console.error("❌ Error adding product:", err)
       setError(err.message || "Error adding product")
       return false
     } finally {
