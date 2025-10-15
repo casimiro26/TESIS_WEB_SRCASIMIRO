@@ -9,7 +9,6 @@ import { AdminDashboard } from "./components/AdminDashboard"
 import { Footer } from "./components/Footer"
 import { Loader } from "./components/Loader"
 import { useStore } from "./context/StoreContext"
-import { categories } from "./data/products"
 import type { Product } from "./types"
 import { Grid, List, SlidersHorizontal, Heart, ShoppingCart, X, Truck, Shield, RotateCcw, Eye } from "lucide-react"
 import { useCart } from "./context/CartContext"
@@ -78,6 +77,10 @@ function App() {
   const [activeTab, setActiveTab] = useState<"descripcion" | "caracteristicas" | "resenas">("descripcion")
 
   const { addToCart, addToFavorites, removeFromFavorites, favorites } = useCart()
+
+  const categories = useMemo(() => {
+    return Array.from(new Set(products.map(p => p.category))).sort()
+  }, [products])
 
   const handleViewProduct = (product: Product) => {
     setSelectedProduct(product)

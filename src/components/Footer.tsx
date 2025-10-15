@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { X, Send, MessageCircle, Eye, Heart, ShoppingCart, Bot } from "lucide-react"
+import { X, Send, MessageCircle, Eye, Heart, ShoppingCart, Bot, Trash2, Plus, Minus, Check } from "lucide-react"
 import { useCart } from "../context/CartContext"
 import { useAuth } from "../context/AuthContext"
 import { fetchProducts, fetchCategories } from "../data/products" // Cambiado a fetch dinámico
@@ -10,7 +10,7 @@ import { fetchProducts, fetchCategories } from "../data/products" // Cambiado a 
 const API_BASE_URL = "http://localhost:3000" // Ajusta si deployas el chatbot API (o usa tu API principal si integras)
 
 export const Footer: React.FC = () => {
-  const { favorites, items } = useCart()
+  const { favorites, items, addToCart, removeFromCart, updateQuantity } = useCart()
   const { user, token } = useAuth() // Asume que AuthContext expone token
 
   const paymentMethods = [
@@ -42,6 +42,8 @@ export const Footer: React.FC = () => {
   const [dynamicCategories, setDynamicCategories] = useState<string[]>([]) // Estado para categorías de DB
   const [selectedCategory, setSelectedCategory] = useState<string>("Todas") // Para filtro
   const [productsLoading, setProductsLoading] = useState(false) // Loading para products
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set()) // Para selección múltiple en products
+  const [cartTotal, setCartTotal] = useState(0) // Total del carrito
 
   interface Message {
     id: number
@@ -72,8 +74,15 @@ export const Footer: React.FC = () => {
     }
   }, [activeView, token])
 
+  // Calcular total del carrito cuando cambian items
+  useEffect(() => {
+    const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    setCartTotal(total)
+  }, [items])
+
   const loadProductsAndCategories = async () => {
     setProductsLoading(true)
+    setSelectedProducts(new Set()) // Reset selección
     try {
       // Fetch paralelo para eficiencia
       const [productsRes, categoriesRes] = await Promise.all([
@@ -196,6 +205,51 @@ export const Footer: React.FC = () => {
   const filteredProducts = dynamicProducts.filter(product => 
     selectedCategory === "Todas" || product.category === selectedCategory
   )
+
+  // Manejar selección de producto
+  const toggleProductSelection = (productId: string) => {
+    const newSelected = new Set(selectedProducts)
+    if (newSelected.has(productId)) {
+      newSelected.delete(productId)
+    } else {
+      newSelected.add(productId)
+    }
+    setSelectedProducts(newSelected)
+  }
+
+  // Agregar seleccionados al carrito
+  const addSelectedToCart = () => {
+    if (selectedProducts.size === 0) return
+    selectedProducts.forEach(productId => {
+      const product = dynamicProducts.find(p => p.id === productId)
+      if (product) {
+        addToCart({ ...product, quantity: 1 }) // Asume que addToCart acepta el producto con quantity
+      }
+    })
+    setSelectedProducts(new Set()) // Reset selección
+    // Opcional: Mostrar mensaje de éxito en chat o notificación
+  }
+
+  // Proceder a checkout
+  const proceedToCheckout = () => {
+    if (items.length === 0) return
+    // Redirigir a página de checkout, ajusta la ruta según tu app
+    window.location.href = '/checkout'
+  }
+
+  // Actualizar cantidad en carrito
+  const handleQuantityChange = (itemId: string, delta: number) => {
+    const item = items.find(i => i.id === itemId)
+    if (item) {
+      const newQuantity = Math.max(1, item.quantity + delta)
+      updateQuantity(itemId, newQuantity)
+    }
+  }
+
+  // Remover del carrito
+  const handleRemoveFromCart = (itemId: string) => {
+    removeFromCart(itemId)
+  }
 
   return (
     <footer className="bg-gray-900 dark:bg-gray-950 text-white relative">
@@ -471,20 +525,7 @@ export const Footer: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {/* Quick Responses */}
-                    <div className="space-y-2 mt-3">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Preguntas rápidas:</p>
-                      {quickResponses.map((response, index) => (
-                        <button
-                          key={index}
-                          onClick={() => handleQuickResponse(response)}
-                          disabled={isLoading}
-                          className="w-full text-left text-sm p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-700 dark:text-gray-300 disabled:opacity-50"
-                        >
-                          {response}
-                        </button>
-                      ))}
-                    </div>
+                    
                   </>
                 )}
 
@@ -506,6 +547,14 @@ export const Footer: React.FC = () => {
                         ))}
                       </select>
                     </div>
+                    {/* Botón para agregar seleccionados */}
+                    <button
+                      onClick={addSelectedToCart}
+                      disabled={selectedProducts.size === 0 || productsLoading}
+                      className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white py-2 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+                    >
+                      Agregar {selectedProducts.size} seleccionado{selectedProducts.size !== 1 ? 's' : ''} al carrito
+                    </button>
                     {productsLoading ? (
                       <p className="text-center text-gray-500 dark:text-gray-400 py-8">Cargando productos...</p>
                     ) : filteredProducts.length === 0 ? (
@@ -514,12 +563,18 @@ export const Footer: React.FC = () => {
                       filteredProducts.slice(0, 6).map((product) => (
                         <div
                           key={product.id}
-                          className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                          className="flex items-start gap-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
                         >
+                          <input
+                            type="checkbox"
+                            checked={selectedProducts.has(product.id)}
+                            onChange={() => toggleProductSelection(product.id)}
+                            className="mt-1 h-4 w-4 text-red-600 focus:ring-red-500 rounded"
+                          />
                           <img
                             src={product.image || "/placeholder.svg"}
                             alt={product.name}
-                            className="w-12 h-12 rounded-lg object-cover"
+                            className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.name}</p>
@@ -564,23 +619,59 @@ export const Footer: React.FC = () => {
                     {items.length === 0 ? (
                       <p className="text-center text-gray-500 dark:text-gray-400 py-8">Tu carrito está vacío</p>
                     ) : (
-                      items.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                        >
-                          <img
-                            src={item.image || "/placeholder.svg"}
-                            alt={item.name}
-                            className="w-12 h-12 rounded-lg object-cover"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Cantidad: {item.quantity}</p>
-                            <p className="text-sm font-bold text-red-600">S/. {(item.price * item.quantity).toFixed(2)}</p>
+                      <>
+                        {items.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                          >
+                            <img
+                              src={item.image || "/placeholder.svg"}
+                              alt={item.name}
+                              className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">S/. {item.price} c/u</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleQuantityChange(item.id, -1)}
+                                className="p-1 text-gray-500 hover:text-red-500 transition-colors"
+                              >
+                                <Minus className="w-4 h-4" />
+                              </button>
+                              <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+                              <button
+                                onClick={() => handleQuantityChange(item.id, 1)}
+                                className="p-1 text-gray-500 hover:text-red-500 transition-colors"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <div className="text-right flex-1">
+                              <p className="text-sm font-bold text-red-600">S/. {(item.price * item.quantity).toFixed(2)}</p>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveFromCart(item.id)}
+                              className="p-1 text-gray-500 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
+                        ))}
+                        <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                          <p className="text-sm font-bold text-gray-900 dark:text-white text-right">
+                            Total: S/. {cartTotal.toFixed(2)}
+                          </p>
+                          <button
+                            onClick={proceedToCheckout}
+                            className="w-full mt-3 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-medium transition-colors"
+                          >
+                            Proceder a Pago
+                          </button>
                         </div>
-                      ))
+                      </>
                     )}
                   </div>
                 )}
