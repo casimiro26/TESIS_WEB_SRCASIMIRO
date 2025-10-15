@@ -88,6 +88,95 @@ const calculateMonthlySales = (orders: Order[]): number[] => {
   return monthlySales
 }
 
+    // Editar categoría - CONECTADO A API REAL - CORREGIDA
+  const handleEditCategory = async () => {
+    if (!editCategory || !editCategory.nombre.trim()) {
+      setErrors(prev => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const token = localStorage.getItem("sr-robot-token")
+      if (!token) throw new Error("No authentication token")
+
+      console.log("🔄 Editando categoría:", editCategory)
+
+      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${editCategory.id_categoria}`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          nombre: editCategory.nombre,
+          descripcion: editCategory.descripcion
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ mensaje: "Error updating category" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
+      }
+
+      const responseData = await response.json()
+      console.log("✅ Categoría actualizada:", responseData)
+
+      // Recargar categorías desde la API
+      await loadCategories()
+      
+      setShowEditCategoryModal(false)
+      setEditCategory(null)
+      setToast({ message: "✅ Categoría actualizada con éxito", type: "success" })
+    } catch (error: any) {
+      console.error("❌ Error updating category:", error)
+      setToast({ message: error.message || "Error al actualizar categoría", type: "error" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+    // Eliminar categoría - CONECTADO A API REAL - CORREGIDA
+  const handleDeleteCategory = async (categoryId: number) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar esta categoría?")) {
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const token = localStorage.getItem("sr-robot-token")
+      if (!token) throw new Error("No authentication token")
+
+      console.log("🗑️ Eliminando categoría ID:", categoryId)
+
+      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${categoryId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ mensaje: "Error deleting category" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
+      }
+
+      const responseData = await response.json()
+      console.log("✅ Categoría eliminada:", responseData)
+
+      // Recargar categorías desde la API
+      await loadCategories()
+      
+      setToast({ message: "✅ Categoría eliminada con éxito", type: "success" })
+    } catch (error: any) {
+      console.error("❌ Error deleting category:", error)
+      setToast({ message: error.message || "Error al eliminar categoría", type: "error" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
 const calculateCategoryDistribution = (products: Product[]): Record<string, number> => {
   const distribution: Record<string, number> = {}
   
@@ -137,7 +226,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     descripcion: ""
   })
   const [editProduct, setEditProduct] = useState<Product | null>(null)
-  const [editCategory, setEditCategory] = useState<Category | null>(null)
+const [editCategory, setEditCategory] = useState<Category | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [errors, setErrors] = useState({
     name: "",
@@ -244,85 +333,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     } catch (error: any) {
       console.error("Error creating category:", error)
       setToast({ message: error.message || "Error al crear categoría", type: "error" })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Editar categoría - CONECTADO A API REAL
-  const handleEditCategory = async () => {
-    if (!editCategory || !editCategory.nombre.trim()) {
-      setErrors(prev => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      const token = localStorage.getItem("sr-robot-token")
-      if (!token) throw new Error("No authentication token")
-
-      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${editCategory.id_categoria}`, {
-        method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          nombre: editCategory.nombre,
-          descripcion: editCategory.descripcion
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ mensaje: "Error updating category" }))
-        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
-      }
-
-      // Recargar categorías desde la API
-      await loadCategories()
-      
-      setShowEditCategoryModal(false)
-      setEditCategory(null)
-      setToast({ message: "Categoría actualizada con éxito", type: "success" })
-    } catch (error: any) {
-      console.error("Error updating category:", error)
-      setToast({ message: error.message || "Error al actualizar categoría", type: "error" })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Eliminar categoría - CONECTADO A API REAL
-  const handleDeleteCategory = async (categoryId: number) => {
-    if (!window.confirm("¿Estás seguro de que deseas eliminar esta categoría?")) {
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      const token = localStorage.getItem("sr-robot-token")
-      if (!token) throw new Error("No authentication token")
-
-      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${categoryId}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ mensaje: "Error deleting category" }))
-        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
-      }
-
-      // Recargar categorías desde la API
-      await loadCategories()
-      
-      setToast({ message: "Categoría eliminada con éxito", type: "success" })
-    } catch (error: any) {
-      console.error("Error deleting category:", error)
-      setToast({ message: error.message || "Error al eliminar categoría", type: "error" })
     } finally {
       setIsLoading(false)
     }
@@ -525,6 +535,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     setImagePreview("")
   }
 
+  // ✅ EDITAR PRODUCTO - CORREGIDO
   const handleEditProduct = (product: Product) => {
     setEditProduct(product)
     setNewProduct({
@@ -557,7 +568,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     }
   }
 
-  // CORREGIDO: Función para guardar producto - SIN REDIRECCIÓN
+  // ✅ CORREGIDO: Función para guardar producto - SIN PANTALLA EN BLANCO
   const handleSaveNewProduct = async () => {
     if (!validateForm()) return
 
@@ -590,7 +601,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       console.log("✅ Resultado de addProduct:", success)
       
       if (success) {
-        // CORREGIDO: Solo cerrar modal y mostrar mensaje, NO redirigir
+        // ✅ CORREGIDO: Solo cerrar modal y mostrar mensaje
         setShowAddModal(false)
         setNewProduct({
           name: "",
@@ -619,7 +630,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
         console.log("✅ Producto creado exitosamente")
         
         // Recargar productos para asegurar que se vea en la lista
-        await loadProducts()
+        setTimeout(() => {
+          loadProducts()
+        }, 500)
       } else {
         setToast({ message: "❌ Error al crear el producto", type: "error" })
         console.log("❌ Error al crear producto")
@@ -629,10 +642,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       setToast({ message: "❌ Error al crear el producto", type: "error" })
     } finally {
       setIsLoading(false)
-      setTimeout(() => setToast(null), 3000)
     }
   }
 
+  // ✅ EDITAR PRODUCTO - CORREGIDO
   const handleSaveEditProduct = async () => {
     if (!validateForm() || !editProduct) return
 
@@ -684,15 +697,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
           productCode: "",
           categoryName: ""
         })
-        setToast({ message: "Producto actualizado con éxito", type: "success" })
+        setToast({ message: "✅ Producto actualizado con éxito", type: "success" })
+        
+        // Recargar productos
+        setTimeout(() => {
+          loadProducts()
+        }, 500)
       } else {
-        setToast({ message: "Error al actualizar el producto", type: "error" })
+        setToast({ message: "❌ Error al actualizar el producto", type: "error" })
       }
     } catch (error) {
-      setToast({ message: "Error al actualizar el producto", type: "error" })
+      setToast({ message: "❌ Error al actualizar el producto", type: "error" })
     } finally {
       setIsLoading(false)
-      setTimeout(() => setToast(null), 3000)
     }
   }
 
@@ -714,8 +731,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     }, 1000)
   }
 
-  const handleViewPaymentProof = (paymentProof: string) => {
-    window.open(paymentProof, "_blank")
+  // ✅ VISTA PREVIA DE COMPROBANTE EN PEDIDOS
+  const handleViewReceipt = (receiptUrl?: string) => {
+    if (receiptUrl) {
+      window.open(receiptUrl, "_blank")
+    } else {
+      setToast({ message: "No hay comprobante disponible", type: "error" })
+    }
   }
 
   const getDiscountedPrice = (price: number, discount?: number) => {
@@ -1014,7 +1036,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
-            {/* GESTIÓN DE PRODUCTOS */}
+            {/* GESTIÓN DE PRODUCTOS - CORREGIDO */}
             {activeTab === "products" && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -1152,6 +1174,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                               </td>
                               <td className="p-4">
                                 <div className="flex gap-2">
+                                  {/* ✅ BOTÓN EDITAR - CORREGIDO */}
                                   <button
                                     onClick={() => handleEditProduct(product)}
                                     className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium flex items-center gap-1"
@@ -1181,7 +1204,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
-            {/* GESTIÓN DE CATEGORÍAS - CORREGIDO CON EDITAR/ELIMINAR */}
+            {/* GESTIÓN DE CATEGORÍAS - CON EDITAR Y ELIMINAR */}
             {activeTab === "categories" && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -1244,7 +1267,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
-            {/* PEDIDOS - MEJORADO */}
+            {/* PEDIDOS - MEJORADO CON VISTA PREVIA DE COMPROBANTE */}
             {activeTab === "orders" && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -1345,11 +1368,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                                     <Eye className="w-4 h-4" />
                                     Ver
                                   </button>
+                                  {/* ✅ VISTA PREVIA DE COMPROBANTE */}
+                                  {order.receiptUrl && (
+                                    <button
+                                      onClick={() => handleViewReceipt(order.receiptUrl)}
+                                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center gap-1"
+                                    >
+                                      <FileText className="w-4 h-4" />
+                                      Comprobante
+                                    </button>
+                                  )}
                                   {!order.hasReceipt && (
                                     <button
                                       onClick={() => handleConfirmReceipt(order.id)}
                                       disabled={isLoading}
-                                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center gap-1"
+                                      className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium flex items-center gap-1"
                                     >
                                       <CheckCircle className="w-4 h-4" />
                                       Confirmar
@@ -1392,9 +1425,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                 </div>
               </div>
             )}
+            {/* MODAL PARA EDITAR CATEGORÍA */}
+            {showEditCategoryModal && editCategory && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-900">Editar Categoría</h3>
+                    <button
+                      onClick={() => setShowEditCategoryModal(false)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nombre de la Categoría</label>
+                      <input
+                        type="text"
+                        value={editCategory.nombre}
+                        onChange={(e) => setEditCategory({ ...editCategory, nombre: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
+                      <textarea
+                        value={editCategory.descripcion}
+                        onChange={(e) => setEditCategory({ ...editCategory, descripcion: e.target.value })}
+                        rows={3}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+                    <button
+                      onClick={() => setShowEditCategoryModal(false)}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleEditCategory}
+                      disabled={isLoading}
+                      className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
+                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {isLoading ? "Actualizando..." : "Actualizar Categoría"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
-            {/* MODALES... (se mantienen igual que antes pero CORREGIDOS) */}
-            {/* MODAL PARA AGREGAR PRODUCTO */}
+            {/* MODAL PARA AGREGAR PRODUCTO - CON VISTA PREVIA */}
             {showAddModal && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1481,7 +1567,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
                       
-                      {/* VISTA PREVIA DE LA IMAGEN */}
+                      {/* ✅ VISTA PREVIA DE LA IMAGEN */}
                       {imagePreview && (
                         <div className="mt-3">
                           <p className="text-sm font-medium text-gray-700 mb-2">Vista previa:</p>
@@ -1573,7 +1659,179 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
-            {/* MODAL PARA CREAR CATEGORÍA */}
+            {/* MODAL PARA EDITAR PRODUCTO - CON VISTA PREVIA */}
+            {showEditModal && editProduct && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-900">Editar Producto</h3>
+                    <button
+                      onClick={() => {
+                        setShowEditModal(false)
+                        setImagePreview("")
+                      }}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nombre del Producto</label>
+                      <input
+                        type="text"
+                        value={newProduct.name}
+                        onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      />
+                      {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
+                      <select
+                        value={newProduct.category}
+                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      >
+                        <option value="">Seleccionar categoría</option>
+                        {categories.map((category) => (
+                          <option key={category.id_categoria} value={category.nombre}>
+                            {category.nombre}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.category && <p className="text-red-600 text-sm mt-1">{errors.category}</p>}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Precio (S/)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={newProduct.price}
+                          onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        />
+                        {errors.price && <p className="text-red-600 text-sm mt-1">{errors.price}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Descuento (%)</label>
+                        <input
+                          type="number"
+                          value={newProduct.discount}
+                          onChange={(e) => setNewProduct({ ...newProduct, discount: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        />
+                        {errors.discount && <p className="text-red-600 text-sm mt-1">{errors.discount}</p>}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">URL de la Imagen</label>
+                      <div className="flex items-center gap-2 mb-2">
+                        <ImageIcon className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-500">Ingresa la URL de la imagen</span>
+                      </div>
+                      <input
+                        type="url"
+                        value={newProduct.image}
+                        onChange={handleImageChange}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      />
+                      {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
+                      
+                      {/* ✅ VISTA PREVIA DE LA IMAGEN */}
+                      {imagePreview && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-gray-700 mb-2">Vista previa:</p>
+                          <div className="relative w-32 h-32 border border-gray-300 rounded-lg overflow-hidden">
+                            <img
+                              src={imagePreview}
+                              alt="Vista previa"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = "/placeholder.svg"
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
+                      <textarea
+                        value={newProduct.description}
+                        onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+                        rows={3}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      />
+                      {errors.description && <p className="text-red-600 text-sm mt-1">{errors.description}</p>}
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Características</label>
+                      <textarea
+                        value={newProduct.characteristics}
+                        onChange={(e) => setNewProduct({ ...newProduct, characteristics: e.target.value })}
+                        rows={3}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      />
+                      {errors.characteristics && <p className="text-red-600 text-sm mt-1">{errors.characteristics}</p>}
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Código de Producto</label>
+                      <input
+                        type="text"
+                        value={newProduct.productCode}
+                        onChange={(e) => setNewProduct({ ...newProduct, productCode: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                      />
+                      {errors.productCode && <p className="text-red-600 text-sm mt-1">{errors.productCode}</p>}
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="editInStock"
+                        checked={newProduct.inStock}
+                        onChange={(e) => setNewProduct({ ...newProduct, inStock: e.target.checked })}
+                        className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-600"
+                      />
+                      <label htmlFor="editInStock" className="text-sm font-medium text-gray-700">
+                        Producto en stock
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        setShowEditModal(false)
+                        setImagePreview("")
+                      }}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveEditProduct}
+                      disabled={isLoading}
+                      className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
+                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {isLoading ? "Actualizando..." : "Actualizar Producto"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODALES DE CATEGORÍAS (se mantienen igual) */}
             {showCategoryModal && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
@@ -1631,62 +1889,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
-            {/* MODAL PARA EDITAR CATEGORÍA - NUEVO */}
-            {showEditCategoryModal && editCategory && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                    <h3 className="text-xl font-bold text-gray-900">Editar Categoría</h3>
-                    <button
-                      onClick={() => setShowEditCategoryModal(false)}
-                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="p-6 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Nombre de la Categoría</label>
-                      <input
-                        type="text"
-                        value={editCategory.nombre}
-                        onChange={(e) => setEditCategory({ ...editCategory, nombre: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
-                      <textarea
-                        value={editCategory.descripcion}
-                        onChange={(e) => setEditCategory({ ...editCategory, descripcion: e.target.value })}
-                        rows={3}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
-                    <button
-                      onClick={() => setShowEditCategoryModal(false)}
-                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={handleEditCategory}
-                      disabled={isLoading}
-                      className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
-                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                    >
-                      {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                      {isLoading ? "Actualizando..." : "Actualizar Categoría"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* MODAL PARA DETALLES DE PEDIDO */}
+            {/* MODAL PARA DETALLES DE PEDIDO - CON VISTA PREVIA DE COMPROBANTE */}
             {showOrderDetails && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1745,6 +1948,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         ))}
                       </div>
                     </div>
+
+                    {/* ✅ VISTA PREVIA DE COMPROBANTE EN DETALLES */}
+                    {showOrderDetails.receiptUrl && (
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">Comprobante de Pago</h4>
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-sm font-medium text-gray-700">Comprobante adjunto:</p>
+                            <button
+                              onClick={() => handleViewReceipt(showOrderDetails.receiptUrl)}
+                              className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
+                            >
+                              Ver Comprobante
+                            </button>
+                          </div>
+                          <div className="text-center py-4 border border-gray-300 rounded bg-white">
+                            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm text-gray-600">Comprobante de pago disponible</p>
+                            <p className="text-xs text-gray-500 mt-1">Haz clic en "Ver Comprobante" para abrir</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="border-t pt-4">
                       <div className="flex justify-between items-center">
