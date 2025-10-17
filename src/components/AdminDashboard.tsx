@@ -72,9 +72,8 @@ interface Category {
   descripcion: string
 }
 
-// ✅ MOVER LAS FUNCIONES AUXILIARES FUERA DEL COMPONENTE
 const calculateMonthlySales = (orders: Order[]): number[] => {
-  const monthlySales = [0, 0, 0, 0, 0, 0] // Últimos 6 meses
+  const monthlySales = [0, 0, 0, 0, 0, 0]
   
   orders.forEach(order => {
     const orderDate = new Date(order.date)
@@ -87,95 +86,6 @@ const calculateMonthlySales = (orders: Order[]): number[] => {
   
   return monthlySales
 }
-
-    // Editar categoría - CONECTADO A API REAL - CORREGIDA
-  const handleEditCategory = async () => {
-    if (!editCategory || !editCategory.nombre.trim()) {
-      setErrors(prev => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      const token = localStorage.getItem("sr-robot-token")
-      if (!token) throw new Error("No authentication token")
-
-      console.log("🔄 Editando categoría:", editCategory)
-
-      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${editCategory.id_categoria}`, {
-        method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          nombre: editCategory.nombre,
-          descripcion: editCategory.descripcion
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ mensaje: "Error updating category" }))
-        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
-      }
-
-      const responseData = await response.json()
-      console.log("✅ Categoría actualizada:", responseData)
-
-      // Recargar categorías desde la API
-      await loadCategories()
-      
-      setShowEditCategoryModal(false)
-      setEditCategory(null)
-      setToast({ message: "✅ Categoría actualizada con éxito", type: "success" })
-    } catch (error: any) {
-      console.error("❌ Error updating category:", error)
-      setToast({ message: error.message || "Error al actualizar categoría", type: "error" })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-    // Eliminar categoría - CONECTADO A API REAL - CORREGIDA
-  const handleDeleteCategory = async (categoryId: number) => {
-    if (!window.confirm("¿Estás seguro de que deseas eliminar esta categoría?")) {
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      const token = localStorage.getItem("sr-robot-token")
-      if (!token) throw new Error("No authentication token")
-
-      console.log("🗑️ Eliminando categoría ID:", categoryId)
-
-      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${categoryId}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ mensaje: "Error deleting category" }))
-        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
-      }
-
-      const responseData = await response.json()
-      console.log("✅ Categoría eliminada:", responseData)
-
-      // Recargar categorías desde la API
-      await loadCategories()
-      
-      setToast({ message: "✅ Categoría eliminada con éxito", type: "success" })
-    } catch (error: any) {
-      console.error("❌ Error deleting category:", error)
-      setToast({ message: error.message || "Error al eliminar categoría", type: "error" })
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
 const calculateCategoryDistribution = (products: Product[]): Record<string, number> => {
   const distribution: Record<string, number> = {}
@@ -226,7 +136,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     descripcion: ""
   })
   const [editProduct, setEditProduct] = useState<Product | null>(null)
-const [editCategory, setEditCategory] = useState<Category | null>(null)
+  const [editCategory, setEditCategory] = useState<Category | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [errors, setErrors] = useState({
     name: "",
@@ -246,9 +156,8 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
   const [orderFilter, setOrderFilter] = useState("Todos")
   const [productFilter, setProductFilter] = useState("Todos")
   const [refreshing, setRefreshing] = useState(false)
-  const [imagePreview, setImagePreview] = useState<string>("")
+  const [imagePreview, setImagePreview] = useState("")
 
-  // Cargar categorías desde la API REAL
   const loadCategories = async () => {
     try {
       const token = localStorage.getItem("sr-robot-token")
@@ -270,7 +179,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
         setCategories(data.categorias || [])
       } else {
         console.error("Error loading categories:", response.status)
-        // Fallback a categorías estáticas
         const defaultCategories: Category[] = [
           { id_categoria: 1, nombre: "Laptops", descripcion: "Computadoras portátiles" },
           { id_categoria: 2, nombre: "Smartphones", descripcion: "Teléfonos inteligentes" },
@@ -281,7 +189,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
       }
     } catch (error) {
       console.error("Error loading categories:", error)
-      // Fallback a categorías estáticas
       const defaultCategories: Category[] = [
         { id_categoria: 1, nombre: "Laptops", descripcion: "Computadoras portátiles" },
         { id_categoria: 2, nombre: "Smartphones", descripcion: "Teléfonos inteligentes" },
@@ -292,7 +199,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
     }
   }
 
-  // Crear nueva categoría - CONECTADO A API REAL
   const handleCreateCategory = async () => {
     if (!newCategory.nombre.trim()) {
       setErrors(prev => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
@@ -323,7 +229,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
 
       const responseData = await response.json()
       
-      // Recargar categorías desde la API
       await loadCategories()
       
       setShowCategoryModal(false)
@@ -338,7 +243,91 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
     }
   }
 
-  // Mostrar errores del StoreContext
+  const handleEditCategory = async () => {
+    if (!editCategory || !editCategory.nombre.trim()) {
+      setErrors(prev => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const token = localStorage.getItem("sr-robot-token")
+      if (!token) throw new Error("No authentication token")
+
+      console.log("Editando categoría:", editCategory)
+
+      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${editCategory.id_categoria}`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          nombre: editCategory.nombre,
+          descripcion: editCategory.descripcion
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ mensaje: "Error updating category" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
+      }
+
+      const responseData = await response.json()
+      console.log("Categoría actualizada:", responseData)
+
+      await loadCategories()
+      
+      setShowEditCategoryModal(false)
+      setEditCategory(null)
+      setToast({ message: "Categoría actualizada con éxito", type: "success" })
+    } catch (error: any) {
+      console.error("Error updating category:", error)
+      setToast({ message: error.message || "Error al actualizar categoría", type: "error" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDeleteCategory = async (categoryId: number) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar esta categoría?")) {
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const token = localStorage.getItem("sr-robot-token")
+      if (!token) throw new Error("No authentication token")
+
+      console.log("Eliminando categoría ID:", categoryId)
+
+      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${categoryId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ mensaje: "Error deleting category" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
+      }
+
+      const responseData = await response.json()
+      console.log("Categoría eliminada:", responseData)
+
+      await loadCategories()
+      
+      setToast({ message: "Categoría eliminada con éxito", type: "success" })
+    } catch (error: any) {
+      console.error("Error deleting category:", error)
+      setToast({ message: error.message || "Error al eliminar categoría", type: "error" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (storeError) {
       setToast({ message: storeError, type: "error" })
@@ -349,31 +338,18 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
     }
   }, [storeError, clearError])
 
-  // Cargar datos iniciales
   useEffect(() => {
     if (isOpen) {
       loadCategories()
     }
   }, [isOpen])
 
-  // Estadísticas REALES basadas en datos
   const stats = useMemo(() => {
-    // Clientes activos - ESTE DATO DEBE VENIR DE TU API
     const activeCustomers = 1
-    
-    // Productos activos (en stock)
     const activeProducts = products.filter(p => p.inStock).length
-    
-    // Total de pedidos
     const totalOrders = orders.length
-    
-    // Ingresos totales en soles
     const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
-    
-    // Ventas mensuales (últimos 6 meses basados en pedidos reales)
     const monthlySales = calculateMonthlySales(orders)
-    
-    // Distribución por categoría REAL
     const categoryDistribution = calculateCategoryDistribution(products)
 
     return {
@@ -389,7 +365,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
   const recentActivities = useMemo(() => {
     const activities: Activity[] = []
 
-    // Actividades de pedidos
     orders.slice(0, 3).forEach((order) => {
       activities.push({
         id: `order-${order.id}`,
@@ -399,7 +374,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
       })
     })
 
-    // Actividades de productos agregados recientemente
     products.slice(0, 2).forEach((product) => {
       activities.push({
         id: `product-${product.id}`,
@@ -424,7 +398,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
       date.setDate(date.getDate() - i)
       labels.push(date.toLocaleDateString("es-PE", { day: "numeric", month: "short" }))
       
-      // Contar actividades reales de ese día
       const count = recentActivities.filter((activity) => {
         const activityDate = new Date(activity.timestamp)
         return activityDate.toDateString() === date.toDateString()
@@ -498,8 +471,8 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
       newErrors.category = "La categoría es requerida"
       isValid = false
     }
-    if (!newProduct.price || isNaN(Number(newProduct.price)) || Number(newProduct.price) <= 0 || Number(newProduct.price) > 10000) {
-      newErrors.price = "El precio debe ser un número entre 0.01 y 10000"
+    if (!newProduct.price || isNaN(Number(newProduct.price)) || Number(newProduct.price) <= 0 || Number(newProduct.price) > 10000000) {
+      newErrors.price = "El precio debe ser un número entero entre 1 y 10,000,000"
       isValid = false
     }
     if (
@@ -535,7 +508,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
     setImagePreview("")
   }
 
-  // ✅ EDITAR PRODUCTO - CORREGIDO
   const handleEditProduct = (product: Product) => {
     setEditProduct(product)
     setNewProduct({
@@ -568,14 +540,13 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
     }
   }
 
-  // ✅ CORREGIDO: Función para guardar producto - SIN PANTALLA EN BLANCO
   const handleSaveNewProduct = async () => {
     if (!validateForm()) return
 
     setIsLoading(true)
     
     const discount = newProduct.discount ? Number(newProduct.discount) : undefined
-    const price = Number(newProduct.price)
+    const price = Math.round(Number(newProduct.price));
     const originalPrice = discount ? Math.round(price / (1 - discount / 100)) : undefined
 
     const productData = {
@@ -594,14 +565,13 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
       featured: false,
     }
 
-    console.log("🔄 Iniciando creación de producto...")
+    console.log("Iniciando creación de producto...")
 
     try {
       const success = await addProduct(productData)
-      console.log("✅ Resultado de addProduct:", success)
+      console.log("Resultado de addProduct:", success)
       
       if (success) {
-        // ✅ CORREGIDO: Solo cerrar modal y mostrar mensaje
         setShowAddModal(false)
         setNewProduct({
           name: "",
@@ -626,33 +596,31 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
           productCode: "",
           categoryName: ""
         })
-        setToast({ message: "✅ Producto creado con éxito", type: "success" })
-        console.log("✅ Producto creado exitosamente")
+        setToast({ message: "Producto creado con éxito", type: "success" })
+        console.log("Producto creado exitosamente")
         
-        // Recargar productos para asegurar que se vea en la lista
         setTimeout(() => {
           loadProducts()
         }, 500)
       } else {
-        setToast({ message: "❌ Error al crear el producto", type: "error" })
-        console.log("❌ Error al crear producto")
+        setToast({ message: "Error al crear el producto", type: "error" })
+        console.log("Error al crear producto")
       }
     } catch (error) {
-      console.error("❌ Error en handleSaveNewProduct:", error)
-      setToast({ message: "❌ Error al crear el producto", type: "error" })
+      console.error("Error en handleSaveNewProduct:", error)
+      setToast({ message: "Error al crear el producto", type: "error" })
     } finally {
       setIsLoading(false)
     }
   }
 
-  // ✅ EDITAR PRODUCTO - CORREGIDO
   const handleSaveEditProduct = async () => {
     if (!validateForm() || !editProduct) return
 
     setIsLoading(true)
     
     const discount = newProduct.discount ? Number(newProduct.discount) : undefined
-    const price = Number(newProduct.price)
+    const price = Math.round(Number(newProduct.price));
     const originalPrice = discount ? Math.round(price / (1 - discount / 100)) : undefined
 
     const productData = {
@@ -697,17 +665,16 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
           productCode: "",
           categoryName: ""
         })
-        setToast({ message: "✅ Producto actualizado con éxito", type: "success" })
+        setToast({ message: "Producto actualizado con éxito", type: "success" })
         
-        // Recargar productos
         setTimeout(() => {
           loadProducts()
         }, 500)
       } else {
-        setToast({ message: "❌ Error al actualizar el producto", type: "error" })
+        setToast({ message: "Error al actualizar el producto", type: "error" })
       }
     } catch (error) {
-      setToast({ message: "❌ Error al actualizar el producto", type: "error" })
+      setToast({ message: "Error al actualizar el producto", type: "error" })
     } finally {
       setIsLoading(false)
     }
@@ -731,7 +698,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
     }, 1000)
   }
 
-  // ✅ VISTA PREVIA DE COMPROBANTE EN PEDIDOS
   const handleViewReceipt = (receiptUrl?: string) => {
     if (receiptUrl) {
       window.open(receiptUrl, "_blank")
@@ -835,7 +801,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
           </div>
 
           <div className="flex-1 p-6 overflow-y-auto bg-gray-50">
-            {/* RESUMEN GENERAL */}
             {activeTab === "overview" && (
               <div className="space-y-8">
                 <div className="flex justify-between items-center">
@@ -850,7 +815,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                   </div>
                 </div>
                 
-                {/* ESTADÍSTICAS MEJORADAS */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3">
@@ -886,7 +850,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                   </div>
                 </div>
 
-                {/* GRÁFICAS MEJORADAS */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 h-[450px]">
                     <h3 className="text-xl font-bold text-gray-900 tracking-tight mb-2">Ventas Mensuales</h3>
@@ -971,7 +934,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                   </div>
                 </div>
 
-                {/* ACTIVIDADES RECIENTES */}
                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
                   <h3 className="text-xl font-bold text-gray-900 tracking-tight mb-4">Actividades Recientes</h3>
                   <p className="text-sm text-gray-500 font-medium mb-6">Últimas acciones registradas en el sistema</p>
@@ -1036,7 +998,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
               </div>
             )}
 
-            {/* GESTIÓN DE PRODUCTOS - CORREGIDO */}
             {activeTab === "products" && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -1174,7 +1135,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                               </td>
                               <td className="p-4">
                                 <div className="flex gap-2">
-                                  {/* ✅ BOTÓN EDITAR - CORREGIDO */}
                                   <button
                                     onClick={() => handleEditProduct(product)}
                                     className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium flex items-center gap-1"
@@ -1204,7 +1164,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
               </div>
             )}
 
-            {/* GESTIÓN DE CATEGORÍAS - CON EDITAR Y ELIMINAR */}
             {activeTab === "categories" && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -1267,7 +1226,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
               </div>
             )}
 
-            {/* PEDIDOS - MEJORADO CON VISTA PREVIA DE COMPROBANTE */}
             {activeTab === "orders" && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -1368,7 +1326,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                                     <Eye className="w-4 h-4" />
                                     Ver
                                   </button>
-                                  {/* ✅ VISTA PREVIA DE COMPROBANTE */}
                                   {order.receiptUrl && (
                                     <button
                                       onClick={() => handleViewReceipt(order.receiptUrl)}
@@ -1400,7 +1357,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
               </div>
             )}
 
-            {/* USUARIOS - MEJORADO */}
             {activeTab === "users" && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -1425,7 +1381,7 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                 </div>
               </div>
             )}
-            {/* MODAL PARA EDITAR CATEGORÍA */}
+
             {showEditCategoryModal && editCategory && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
@@ -1480,7 +1436,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
               </div>
             )}
 
-            {/* MODAL PARA AGREGAR PRODUCTO - CON VISTA PREVIA */}
             {showAddModal && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1531,11 +1486,12 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                         <label className="block text-sm font-medium text-gray-700 mb-2">Precio (S/)</label>
                         <input
                           type="number"
-                          step="0.01"
+                          step="1"
+                          min="1"
                           value={newProduct.price}
                           onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                          placeholder="0.00"
+                          placeholder="500000"
                         />
                         {errors.price && <p className="text-red-600 text-sm mt-1">{errors.price}</p>}
                       </div>
@@ -1567,7 +1523,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                       />
                       {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
                       
-                      {/* ✅ VISTA PREVIA DE LA IMAGEN */}
                       {imagePreview && (
                         <div className="mt-3">
                           <p className="text-sm font-medium text-gray-700 mb-2">Vista previa:</p>
@@ -1659,7 +1614,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
               </div>
             )}
 
-            {/* MODAL PARA EDITAR PRODUCTO - CON VISTA PREVIA */}
             {showEditModal && editProduct && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1709,10 +1663,12 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                         <label className="block text-sm font-medium text-gray-700 mb-2">Precio (S/)</label>
                         <input
                           type="number"
-                          step="0.01"
+                          step="1"
+                          min="1"
                           value={newProduct.price}
                           onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                          placeholder="500000"
                         />
                         {errors.price && <p className="text-red-600 text-sm mt-1">{errors.price}</p>}
                       </div>
@@ -1742,7 +1698,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                       />
                       {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
                       
-                      {/* ✅ VISTA PREVIA DE LA IMAGEN */}
                       {imagePreview && (
                         <div className="mt-3">
                           <p className="text-sm font-medium text-gray-700 mb-2">Vista previa:</p>
@@ -1831,7 +1786,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
               </div>
             )}
 
-            {/* MODALES DE CATEGORÍAS (se mantienen igual) */}
             {showCategoryModal && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
@@ -1889,7 +1843,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
               </div>
             )}
 
-            {/* MODAL PARA DETALLES DE PEDIDO - CON VISTA PREVIA DE COMPROBANTE */}
             {showOrderDetails && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1949,7 +1902,6 @@ const [editCategory, setEditCategory] = useState<Category | null>(null)
                       </div>
                     </div>
 
-                    {/* ✅ VISTA PREVIA DE COMPROBANTE EN DETALLES */}
                     {showOrderDetails.receiptUrl && (
                       <div>
                         <h4 className="text-lg font-semibold text-gray-900 mb-4">Comprobante de Pago</h4>
