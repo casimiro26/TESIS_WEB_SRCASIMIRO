@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { X, ShoppingCart, Package, Truck, CheckCircle, Clock } from "lucide-react"
+import { X, ShoppingCart, Package, Truck, CheckCircle, Clock, CreditCard } from "lucide-react"
 import { useStore } from "../context/StoreContext"
 import { useAuth } from "../context/AuthContext"
 
@@ -64,6 +64,28 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({ isOpen, onClose }) => 
     }
   }
 
+  const getPaymentMethodIcon = (method?: string) => {
+    switch (method) {
+      case "stripe":
+        return <CreditCard className="w-4 h-4 text-purple-500" />
+      case "transfer":
+        return <CheckCircle className="w-4 h-4 text-blue-500" />
+      default:
+        return null
+    }
+  }
+
+  const getPaymentMethodText = (method?: string) => {
+    switch (method) {
+      case "stripe":
+        return "Stripe"
+      case "transfer":
+        return "Transferencia"
+      default:
+        return "No especificado"
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -119,6 +141,14 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({ isOpen, onClose }) => 
                         </span>
                       </div>
                     </div>
+                    {order.paymentMethod && (
+                      <div className="flex items-center gap-2 mt-2">
+                        {getPaymentMethodIcon(order.paymentMethod)}
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Pagado con {getPaymentMethodText(order.paymentMethod)}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Order Items */}
@@ -137,7 +167,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({ isOpen, onClose }) => 
                           <p className="text-xs text-gray-500 dark:text-gray-400">Cantidad: {item.quantity}</p>
                         </div>
                         <p className="text-sm font-bold text-red-600 dark:text-red-400">
-                          ${(item.product.price * item.quantity).toLocaleString()}
+                          S/ {(item.product.price * item.quantity).toFixed(2)}
                         </p>
                       </div>
                     ))}
@@ -148,7 +178,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({ isOpen, onClose }) => 
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Total:</span>
                       <span className="text-lg font-bold text-red-600 dark:text-red-400">
-                        ${order.total.toLocaleString()}
+                        S/ {order.total.toFixed(2)}
                       </span>
                     </div>
                     {order.hasReceipt && (

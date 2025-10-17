@@ -47,27 +47,19 @@ export const Header: React.FC<HeaderProps> = ({
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        // TODO: Necesitarás crear un endpoint público para categorías
-        // Por ahora, usaremos categorías estáticas como fallback
-        const defaultCategories = [
+        const response = await axios.get("https://api-web-egdy.onrender.com/api/categorias")
+        const fetchedCategories = response.data.categorias
+        setCategories(fetchedCategories)
+      } catch (error) {
+        console.error("Error loading categories:", error)
+        // Fallback a categorías estáticas
+        const fallbackCategories = [
           { id_categoria: 1, nombre: "Laptops", descripcion: "Computadoras portátiles" },
           { id_categoria: 2, nombre: "Smartphones", descripcion: "Teléfonos inteligentes" },
           { id_categoria: 3, nombre: "Tablets", descripcion: "Tabletas y iPads" },
           { id_categoria: 4, nombre: "Accesorios", descripcion: "Accesorios tecnológicos" },
           { id_categoria: 5, nombre: "Audio", descripcion: "Audio y sonido" },
           { id_categoria: 6, nombre: "Gaming", descripcion: "Equipos gaming" },
-        ]
-        setCategories(defaultCategories)
-      } catch (error) {
-        console.error("Error loading categories:", error)
-        // Fallback a categorías estáticas
-        const fallbackCategories = [
-          { id_categoria: 1, nombre: "Laptops", descripcion: "" },
-          { id_categoria: 2, nombre: "Smartphones", descripcion: "" },
-          { id_categoria: 3, nombre: "Tablets", descripcion: "" },
-          { id_categoria: 4, nombre: "Accesorios", descripcion: "" },
-          { id_categoria: 5, nombre: "Audio", descripcion: "" },
-          { id_categoria: 6, nombre: "Gaming", descripcion: "" },
         ]
         setCategories(fallbackCategories)
       } finally {
