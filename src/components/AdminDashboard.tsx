@@ -72,6 +72,9 @@ interface Category {
   descripcion: string
 }
 
+// Configuración de la API
+const API_BASE_URL = "https://api-web-egdy.onrender.com/api"
+
 const calculateMonthlySales = (orders: Order[]): number[] => {
   const monthlySales = [0, 0, 0, 0, 0, 0]
   
@@ -97,17 +100,166 @@ const calculateCategoryDistribution = (products: Product[]): Record<string, numb
   return distribution
 }
 
+// Servicio para productos
+const productoService = {
+  // Obtener productos
+  getProductos: async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/productos`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al obtener productos" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  // Crear producto
+  crearProducto: async (token: string, productoData: any) => {
+    const response = await fetch(`${API_BASE_URL}/productos`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(productoData)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al crear producto" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  // Actualizar producto
+  actualizarProducto: async (token: string, id: number, productoData: any) => {
+    const response = await fetch(`${API_BASE_URL}/productos/${id}`, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(productoData)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al actualizar producto" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  // Eliminar producto
+  eliminarProducto: async (token: string, id: number) => {
+    const response = await fetch(`${API_BASE_URL}/productos/${id}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al eliminar producto" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
+  }
+}
+
+// Servicio para categorías
+const categoriaService = {
+  // Obtener categorías
+  getCategorias: async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/categorias`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al obtener categorías" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  // Crear categoría
+  crearCategoria: async (token: string, categoriaData: any) => {
+    const response = await fetch(`${API_BASE_URL}/admin/crear-categoria`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(categoriaData)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al crear categoría" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  // Actualizar categoría
+  actualizarCategoria: async (token: string, id: number, categoriaData: any) => {
+    const response = await fetch(`${API_BASE_URL}/admin/categorias/${id}`, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(categoriaData)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al actualizar categoría" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  // Eliminar categoría
+  eliminarCategoria: async (token: string, id: number) => {
+    const response = await fetch(`${API_BASE_URL}/admin/categorias/${id}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al eliminar categoría" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
+  }
+}
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onClose }) => {
   const { 
-    products, 
     orders, 
-    addProduct, 
-    updateProduct, 
-    deleteProduct, 
     confirmReceipt, 
     loading: storeLoading,
     error: storeError,
-    loadProducts,
     clearError
   } = useStore()
   
@@ -138,6 +290,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [editCategory, setEditCategory] = useState<Category | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [errors, setErrors] = useState({
     name: "",
     category: "",
@@ -158,37 +311,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [refreshing, setRefreshing] = useState(false)
   const [imagePreview, setImagePreview] = useState("")
 
+  // Función para obtener el token
+  const getToken = (): string => {
+    const token = localStorage.getItem("sr-robot-token")
+    if (!token) {
+      throw new Error("No se encontró token de autenticación")
+    }
+    return token
+  }
+
   const loadCategories = async () => {
     try {
-      const token = localStorage.getItem("sr-robot-token")
-      if (!token) {
-        console.log("No token found for categories")
-        return
-      }
-
-      const response = await fetch("https://api-web-egdy.onrender.com/api/admin/categorias", {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setCategories(data.categorias || [])
-      } else {
-        console.error("Error loading categories:", response.status)
-        const defaultCategories: Category[] = [
-          { id_categoria: 1, nombre: "Laptops", descripcion: "Computadoras portátiles" },
-          { id_categoria: 2, nombre: "Smartphones", descripcion: "Teléfonos inteligentes" },
-          { id_categoria: 3, nombre: "Tablets", descripcion: "Tabletas y iPads" },
-          { id_categoria: 4, nombre: "Accesorios", descripcion: "Accesorios tecnológicos" },
-        ]
-        setCategories(defaultCategories)
-      }
-    } catch (error) {
+      const token = getToken()
+      const data = await categoriaService.getCategorias(token)
+      setCategories(data.categorias || [])
+    } catch (error: any) {
       console.error("Error loading categories:", error)
+      setToast({ message: error.message || "Error al cargar categorías", type: "error" })
+      // Categorías por defecto en caso de error
       const defaultCategories: Category[] = [
         { id_categoria: 1, nombre: "Laptops", descripcion: "Computadoras portátiles" },
         { id_categoria: 2, nombre: "Smartphones", descripcion: "Teléfonos inteligentes" },
@@ -196,6 +336,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
         { id_categoria: 4, nombre: "Accesorios", descripcion: "Accesorios tecnológicos" },
       ]
       setCategories(defaultCategories)
+    }
+  }
+
+  const loadProducts = async () => {
+    try {
+      const token = getToken()
+      const data = await productoService.getProductos(token)
+      const mappedProducts = (data.productos || []).map((p: any) => ({
+        id: p.id_producto,
+        id_producto: p.id_producto,
+        name: p.nombre,
+        category: p.categoria,
+        price: p.price,
+        originalPrice: p.originalPrice,
+        discount: p.discount,
+        image: p.image,
+        description: p.description,
+        characteristics: p.characteristics,
+        productCode: p.productCode,
+        rating: p.rating,
+        reviews: p.reviews,
+        inStock: p.inStock,
+        featured: p.featured,
+        createdAt: p.createdAt,
+        creadoPor: p.creadoPor
+      }))
+      setProducts(mappedProducts)
+    } catch (error: any) {
+      console.error("Error loading products:", error)
+      setToast({ message: error.message || "Error al cargar productos", type: "error" })
+      setProducts([])
     }
   }
 
@@ -207,30 +378,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
 
     setIsLoading(true)
     try {
-      const token = localStorage.getItem("sr-robot-token")
-      if (!token) throw new Error("No authentication token")
-
-      const response = await fetch("https://api-web-egdy.onrender.com/api/admin/crear-categoria", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          nombre: newCategory.nombre,
-          descripcion: newCategory.descripcion
-        })
+      const token = getToken()
+      await categoriaService.crearCategoria(token, {
+        nombre: newCategory.nombre,
+        descripcion: newCategory.descripcion
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ mensaje: "Error creating category" }))
-        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
-      }
-
-      const responseData = await response.json()
       
       await loadCategories()
-      
       setShowCategoryModal(false)
       setNewCategory({ nombre: "", descripcion: "" })
       setErrors(prev => ({ ...prev, categoryName: "" }))
@@ -251,33 +405,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
 
     setIsLoading(true)
     try {
-      const token = localStorage.getItem("sr-robot-token")
-      if (!token) throw new Error("No authentication token")
-
-      console.log("Editando categoría:", editCategory)
-
-      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${editCategory.id_categoria}`, {
-        method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          nombre: editCategory.nombre,
-          descripcion: editCategory.descripcion
-        })
+      const token = getToken()
+      await categoriaService.actualizarCategoria(token, editCategory.id_categoria, {
+        nombre: editCategory.nombre,
+        descripcion: editCategory.descripcion
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ mensaje: "Error updating category" }))
-        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
-      }
-
-      const responseData = await response.json()
-      console.log("Categoría actualizada:", responseData)
-
       await loadCategories()
-      
       setShowEditCategoryModal(false)
       setEditCategory(null)
       setToast({ message: "Categoría actualizada con éxito", type: "success" })
@@ -296,29 +430,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
 
     setIsLoading(true)
     try {
-      const token = localStorage.getItem("sr-robot-token")
-      if (!token) throw new Error("No authentication token")
-
-      console.log("Eliminando categoría ID:", categoryId)
-
-      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/categorias/${categoryId}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ mensaje: "Error deleting category" }))
-        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
-      }
-
-      const responseData = await response.json()
-      console.log("Categoría eliminada:", responseData)
-
+      const token = getToken()
+      await categoriaService.eliminarCategoria(token, categoryId)
       await loadCategories()
-      
       setToast({ message: "Categoría eliminada con éxito", type: "success" })
     } catch (error: any) {
       console.error("Error deleting category:", error)
@@ -341,6 +455,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   useEffect(() => {
     if (isOpen) {
       loadCategories()
+      loadProducts()
     }
   }, [isOpen])
 
@@ -525,18 +640,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     setShowEditModal(true)
   }
 
-  const handleDeleteProduct = async (productId: string) => {
+  const handleDeleteProduct = async (productId: string | number) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar este producto?")) {
       setIsLoading(true)
-      const success = await deleteProduct(productId)
-      setIsLoading(false)
-      
-      if (success) {
+      try {
+        const token = getToken()
+        const idNum = typeof productId === 'string' ? parseInt(productId) : productId
+        await productoService.eliminarProducto(token, idNum)
+        await loadProducts()
         setToast({ message: "Producto eliminado con éxito", type: "success" })
-      } else {
-        setToast({ message: "Error al eliminar el producto", type: "error" })
+      } catch (error: any) {
+        console.error("Error deleting product:", error)
+        setToast({ message: error.message || "Error al eliminar el producto", type: "error" })
+      } finally {
+        setIsLoading(false)
       }
-      setTimeout(() => setToast(null), 3000)
     }
   }
 
@@ -565,50 +683,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       featured: false,
     }
 
-    console.log("Iniciando creación de producto...")
-
     try {
-      const success = await addProduct(productData)
-      console.log("Resultado de addProduct:", success)
-      
-      if (success) {
-        setShowAddModal(false)
-        setNewProduct({
-          name: "",
-          category: "",
-          price: "",
-          discount: "",
-          image: "",
-          description: "",
-          characteristics: "",
-          productCode: "",
-          inStock: true,
-        })
-        setImagePreview("")
-        setErrors({
-          name: "",
-          category: "",
-          price: "",
-          discount: "",
-          image: "",
-          description: "",
-          characteristics: "",
-          productCode: "",
-          categoryName: ""
-        })
-        setToast({ message: "Producto creado con éxito", type: "success" })
-        console.log("Producto creado exitosamente")
-        
-        setTimeout(() => {
-          loadProducts()
-        }, 500)
-      } else {
-        setToast({ message: "Error al crear el producto", type: "error" })
-        console.log("Error al crear producto")
-      }
-    } catch (error) {
+      const token = getToken()
+      await productoService.crearProducto(token, productData)
+
+      await loadProducts()
+      setShowAddModal(false)
+      setNewProduct({
+        name: "",
+        category: "",
+        price: "",
+        discount: "",
+        image: "",
+        description: "",
+        characteristics: "",
+        productCode: "",
+        inStock: true,
+      })
+      setImagePreview("")
+      setErrors({
+        name: "",
+        category: "",
+        price: "",
+        discount: "",
+        image: "",
+        description: "",
+        characteristics: "",
+        productCode: "",
+        categoryName: ""
+      })
+      setToast({ message: "Producto creado con éxito", type: "success" })
+    } catch (error: any) {
       console.error("Error en handleSaveNewProduct:", error)
-      setToast({ message: "Error al crear el producto", type: "error" })
+      setToast({ message: error.message || "Error al crear el producto", type: "error" })
     } finally {
       setIsLoading(false)
     }
@@ -637,44 +744,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     }
 
     try {
-      const success = await updateProduct(editProduct.id, productData)
-      
-      if (success) {
-        setShowEditModal(false)
-        setEditProduct(null)
-        setNewProduct({
-          name: "",
-          category: "",
-          price: "",
-          discount: "",
-          image: "",
-          description: "",
-          characteristics: "",
-          productCode: "",
-          inStock: true,
-        })
-        setImagePreview("")
-        setErrors({
-          name: "",
-          category: "",
-          price: "",
-          discount: "",
-          image: "",
-          description: "",
-          characteristics: "",
-          productCode: "",
-          categoryName: ""
-        })
-        setToast({ message: "Producto actualizado con éxito", type: "success" })
-        
-        setTimeout(() => {
-          loadProducts()
-        }, 500)
-      } else {
-        setToast({ message: "Error al actualizar el producto", type: "error" })
-      }
-    } catch (error) {
-      setToast({ message: "Error al actualizar el producto", type: "error" })
+      const token = getToken()
+      const idNum = typeof editProduct.id === 'string' ? parseInt(editProduct.id) : editProduct.id
+      await productoService.actualizarProducto(token, idNum, productData)
+
+      await loadProducts()
+      setShowEditModal(false)
+      setEditProduct(null)
+      setNewProduct({
+        name: "",
+        category: "",
+        price: "",
+        discount: "",
+        image: "",
+        description: "",
+        characteristics: "",
+        productCode: "",
+        inStock: true,
+      })
+      setImagePreview("")
+      setErrors({
+        name: "",
+        category: "",
+        price: "",
+        discount: "",
+        image: "",
+        description: "",
+        characteristics: "",
+        productCode: "",
+        categoryName: ""
+      })
+      setToast({ message: "Producto actualizado con éxito", type: "success" })
+    } catch (error: any) {
+      console.error("Error en handleSaveEditProduct:", error)
+      setToast({ message: error.message || "Error al actualizar el producto", type: "error" })
     } finally {
       setIsLoading(false)
     }
@@ -760,7 +863,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
           <div className="flex items-center gap-3">
             <button
               onClick={handleRefreshProducts}
-              disabled={refreshing || storeLoading}
+              disabled={refreshing || isLoading}
               className="p-2 hover:bg-white/20 rounded-full transition-colors text-white disabled:opacity-50"
               aria-label="Actualizar productos"
             >
@@ -806,7 +909,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                 <div className="flex justify-between items-center">
                   <h2 className="text-2xl font-semibold text-gray-900">Dashboard Resumen General</h2>
                   <div className="flex items-center gap-2 text-sm text-gray-500">
-                    {storeLoading && (
+                    {isLoading && (
                       <div className="flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         <span>Cargando productos...</span>
@@ -1003,7 +1106,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                 <div className="flex justify-between items-center">
                   <h3 className="text-2xl font-bold text-gray-900">Gestión de Productos</h3>
                   <div className="flex items-center gap-2">
-                    {storeLoading && (
+                    {isLoading && (
                       <div className="flex items-center gap-2 text-sm text-gray-500">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         <span>Cargando...</span>
@@ -1038,9 +1141,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     </div>
                     <button
                       onClick={handleAddProduct}
-                      disabled={storeLoading}
+                      disabled={isLoading}
                       className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
-                        storeLoading ? 'opacity-50 cursor-not-allowed' : ''
+                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
                       <Package className="w-5 h-5" />
@@ -1074,7 +1177,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     ))}
                   </div>
 
-                  {storeLoading && products.length === 0 ? (
+                  {isLoading && products.length === 0 ? (
                     <div className="text-center py-12">
                       <Loader2 className="w-8 h-8 animate-spin mx-auto text-red-600" />
                       <p className="text-gray-500 mt-2">Cargando productos...</p>
@@ -1382,6 +1485,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
+            {/* Modales para categorías y productos (se mantienen igual) */}
             {showEditCategoryModal && editCategory && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">

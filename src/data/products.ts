@@ -25,21 +25,26 @@ export const fetchProducts = async (token?: string): Promise<Product[]> => {
     const data = await response.json();
     // Mapea respuesta de tu API (id_producto -> id, nombre -> name, etc.)
     // Filtra cualquier producto no deseado (ej: si ves uno "no mío", agrega condición aquí)
-    return data
+    return data.productos
       .filter((p: any) => p.nombre !== "Producto No Deseado") // Ejemplo: remueve específico por nombre
       .map((p: any) => ({
         id: p.id_producto.toString(),
+        id_producto: p.id_producto,
         name: p.nombre,
         category: p.categoria,
         price: p.price,
         originalPrice: p.originalPrice,
+        discount: p.discount || 0,
         image: p.image,
         description: p.description,
+        characteristics: p.characteristics || '',
+        productCode: p.productCode || '',
         rating: p.rating || 4.5,
         reviews: p.reviews || 0,
         inStock: p.inStock !== false,
         featured: p.featured || false,
-        discount: p.discount || 0,
+        createdAt: p.createdAt,
+        creadoPor: p.creadoPor, // Incluye campo de auditoría si existe en tipo Product
       }));
   } catch (error) {
     console.error('Error fetching products:', error);
@@ -47,7 +52,13 @@ export const fetchProducts = async (token?: string): Promise<Product[]> => {
   }
 };
 
-export const fetchCategories = async (token?: string): Promise<string[]> => {
+export interface Category {
+  id_categoria: number;
+  nombre: string;
+  descripcion: string;
+}
+
+export const fetchCategories = async (token?: string): Promise<Category[]> => {
   try {
     const headers: HeadersInit = { 'Content-Type': 'application/json' };
     if (token) {
@@ -67,10 +78,16 @@ export const fetchCategories = async (token?: string): Promise<string[]> => {
     }
 
     const data = await response.json();
-    return data.categorias.map((c: any) => c.nombre);
+    return data.categorias || []; // Retorna array completo de Category objects (id_categoria, nombre, descripcion)
   } catch (error) {
     console.error('Error fetching categories:', error);
-    return []; // Vacío para forzar DB; o usa categories si quieres fallback
+    // Fallback a categorías por defecto si falla (como en dashboard)
+    return [
+      { id_categoria: 1, nombre: "Laptops", descripcion: "Computadoras portátiles" },
+      { id_categoria: 2, nombre: "Smartphones", descripcion: "Teléfonos inteligentes" },
+      { id_categoria: 3, nombre: "Tablets", descripcion: "Tabletas y iPads" },
+      { id_categoria: 4, nombre: "Accesorios", descripcion: "Accesorios tecnológicos" },
+    ];
   }
 };
 

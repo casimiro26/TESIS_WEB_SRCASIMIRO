@@ -98,81 +98,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Productos de ejemplo para testing
-  const sampleProducts: Product[] = [
-    {
-      id: "1",
-      id_producto: 1,
-      name: "Laptop Gaming HP Omen",
-      category: "Laptops",
-      price: 3200,
-      originalPrice: 3800,
-      discount: 16,
-      image: "https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=500",
-      description: "Laptop gaming de alto rendimiento para jugadores profesionales",
-      characteristics: "RTX 4060, 16GB RAM, 1TB SSD, Intel i7-13700H",
-      productCode: "LAP001",
-      rating: 4.8,
-      reviews: 124,
-      inStock: true,
-      featured: true,
-      reviewsList: []
-    },
-    {
-      id: "2",
-      id_producto: 2,
-      name: "Teclado Mecánico RGB",
-      category: "Periféricos",
-      price: 189,
-      originalPrice: 220,
-      discount: 14,
-      image: "https://images.unsplash.com/photo-1541140532154-b024d705b90a?w=500",
-      description: "Teclado mecánico con retroiluminación RGB personalizable",
-      characteristics: "Switches Blue, Anti-ghosting, USB-C",
-      productCode: "TEC001",
-      rating: 4.5,
-      reviews: 89,
-      inStock: true,
-      featured: false,
-      reviewsList: []
-    },
-    {
-      id: "3",
-      id_producto: 3,
-      name: "Monitor Curvo 27\"",
-      category: "Monitores",
-      price: 850,
-      originalPrice: 999,
-      discount: 15,
-      image: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500",
-      description: "Monitor curvo gaming con alta tasa de refresco",
-      characteristics: "165Hz, 1ms, QHD, FreeSync",
-      productCode: "MON001",
-      rating: 4.7,
-      reviews: 67,
-      inStock: true,
-      featured: true,
-      reviewsList: []
-    },
-    {
-      id: "4",
-      id_producto: 4,
-      name: "Mouse Inalámbrico",
-      category: "Periféricos",
-      price: 95,
-      image: "https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=500",
-      description: "Mouse ergonómico inalámbrico para gaming",
-      characteristics: "16000 DPI, 6 botones, 50h batería",
-      productCode: "MOU001",
-      rating: 4.3,
-      reviews: 156,
-      inStock: true,
-      featured: false,
-      reviewsList: []
-    }
-  ]
-
-  // Cargar productos desde la API o usar datos de ejemplo
+  // Cargar productos desde la API exclusivamente
   const loadProducts = async (): Promise<void> => {
     try {
       setLoading(true)
@@ -180,10 +106,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const token = getAuthToken()
       if (!token) {
-        console.log("🔐 No hay token, usando productos de ejemplo...")
-        setProducts(sampleProducts)
-        localStorage.setItem("sr-robot-products", JSON.stringify(sampleProducts))
-        return
+        throw new Error("No authentication token found. Please log in to load products.")
       }
 
       const response = await fetch("https://api-web-egdy.onrender.com/api/productos", {
@@ -195,52 +118,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
 
       if (response.status === 401 || response.status === 403) {
-        console.log("🔐 Token inválido, usando productos de ejemplo")
-        setProducts(sampleProducts)
-        localStorage.setItem("sr-robot-products", JSON.stringify(sampleProducts))
-        return
+        throw new Error("Authentication failed. Please log in again to access products.")
       }
 
       if (!response.ok) {
-        console.log("🌐 Error de conexión, usando productos locales")
-        // Usar datos locales si hay error
-        if (typeof window !== "undefined") {
-          const savedProducts = localStorage.getItem("sr-robot-products")
-          if (savedProducts) {
-            setProducts(JSON.parse(savedProducts))
-          } else {
-            setProducts(sampleProducts)
-          }
-        }
-        return
+        throw new Error(`Failed to fetch products: ${response.statusText}`)
       }
 
-      const apiProducts = await response.json()
+      const apiData = await response.json()
       
-      if (!Array.isArray(apiProducts)) {
+      if (!apiData.productos || !Array.isArray(apiData.productos)) {
         throw new Error("Invalid response format from server")
       }
 
-      const normalizedProducts = apiProducts.map(normalizeProductFromAPI)
+      const normalizedProducts = apiData.productos.map(normalizeProductFromAPI)
       
       setProducts(normalizedProducts)
       
-      // Guardar en localStorage como backup
-      if (typeof window !== "undefined") {
-        localStorage.setItem("sr-robot-products", JSON.stringify(normalizedProducts))
-      }
-      
     } catch (err: any) {
       console.error("Error loading products:", err)
-      // Usar datos locales en caso de error
-      if (typeof window !== "undefined") {
-        const savedProducts = localStorage.getItem("sr-robot-products")
-        if (savedProducts) {
-          setProducts(JSON.parse(savedProducts))
-        } else {
-          setProducts(sampleProducts)
-        }
-      }
+      setError(err.message || "Failed to load products from API")
+      setProducts([]) // Array vacío en caso de error
     } finally {
       setLoading(false)
     }
@@ -326,13 +224,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return updatedProducts
       })
       
-      // Actualizar localStorage
-      if (typeof window !== "undefined") {
-        const updatedProducts = [...products, normalizedProduct]
-        localStorage.setItem("sr-robot-products", JSON.stringify(updatedProducts))
-        console.log("💾 Guardado en localStorage")
-      }
-      
       return true
     } catch (err: any) {
       console.error("❌ Error adding product:", err)
@@ -392,14 +283,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setProducts(prev => prev.map(p => 
         p.id === id ? { ...p, ...updatedProductData } : p
       ))
-
-      // Actualizar localStorage
-      if (typeof window !== "undefined") {
-        const updatedProducts = products.map(p => 
-          p.id === id ? { ...p, ...updatedProductData } : p
-        )
-        localStorage.setItem("sr-robot-products", JSON.stringify(updatedProducts))
-      }
       
       return true
     } catch (err: any) {
@@ -452,12 +335,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       // Actualizar estado local
       setProducts(prev => prev.filter(p => p.id !== id))
-
-      // Actualizar localStorage
-      if (typeof window !== "undefined") {
-        const updatedProducts = products.filter(p => p.id !== id)
-        localStorage.setItem("sr-robot-products", JSON.stringify(updatedProducts))
-      }
       
       return true
     } catch (err: any) {

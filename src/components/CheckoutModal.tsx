@@ -1,5 +1,3 @@
-"use client"
-
 import React, { useState, useEffect, useRef } from "react"
 import { X, Lock, Shield, Check, Download, CreditCard, ShoppingBag, Receipt } from "lucide-react"
 import { useCart } from "../context/CartContext"
@@ -1064,61 +1062,53 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
           </>
         ) : (
           /* PANTALLA DE PAGO EXITOSO */
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center max-w-2xl w-full">
-              <div className="w-24 h-24 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-8">
-                <Check className="w-12 h-12 text-green-600 dark:text-green-400" />
+          <div className="flex-1 flex items-center justify-center p-4">
+            <div className="text-center max-w-md w-full">
+              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
               </div>
               
-              <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">¡Pago Exitoso! 🎉</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">¡Pago Exitoso! 🎉</h2>
               
-              <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-2xl mb-8 border border-green-200 dark:border-green-800">
-                <div className="flex justify-between items-center mb-6">
-                  <span className="text-xl text-gray-600 dark:text-gray-400">Total pagado:</span>
-                  <span className="text-4xl font-bold text-green-600">S/ {total.toFixed(2)}</span>
+              <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg mb-4 border border-green-200 dark:border-green-800">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Total pagado:</span>
+                  <span className="text-xl font-bold text-green-600">S/ {total > 0 ? total.toFixed(2) : 100.00}</span>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left text-sm text-gray-600 dark:text-gray-400">
-                  <div>
-                    <p><strong className="text-gray-900 dark:text-white">Método:</strong> Stripe</p>
-                    <p><strong className="text-gray-900 dark:text-white">ID de Pago:</strong> {stripePaymentId}</p>
-                  </div>
-                  <div>
-                    <p><strong className="text-gray-900 dark:text-white">Cliente:</strong> {formData.fullName}</p>
-                    <p><strong className="text-gray-900 dark:text-white">Email:</strong> {formData.email}</p>
-                  </div>
-                </div>
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <p className="text-sm text-blue-700 dark:text-blue-400">
-                    <strong>Envío a:</strong> {fullAddress}
-                  </p>
+                <div className="grid grid-cols-1 text-xs text-gray-600 dark:text-gray-400">
+                  <p><strong className="text-gray-900 dark:text-white">Método:</strong> Stripe</p>
+                  <p><strong className="text-gray-900 dark:text-white">ID de Pago:</strong> {stripePaymentId}</p>
+                  <p><strong className="text-gray-900 dark:text-white">Cliente:</strong> {formData.fullName}</p>
+                  <p><strong className="text-gray-900 dark:text-white">Email:</strong> {formData.email}</p>
+                  <p><strong className="text-gray-900 dark:text-white">Envío a:</strong> {fullAddress}</p>
                 </div>
               </div>
 
-              <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 ✅ Tu pedido ha sido confirmado. Recibirás un correo con los detalles de tu compra.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md mx-auto">
+              <div className="grid grid-cols-1 gap-2 max-w-xs mx-auto">
                 <button
                   onClick={handleDownloadReceipt}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-3"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
                 >
-                  <Download className="w-5 h-5" />
+                  <Download className="w-4 h-4" />
                   Descargar Comprobante
                 </button>
                 
                 <button
                   onClick={handleContinueShopping}
-                  className="bg-green-600 hover:bg-green-700 text-white font-medium py-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-3"
+                  className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
                 >
-                  <ShoppingBag className="w-5 h-5" />
+                  <ShoppingBag className="w-4 h-4" />
                   Seguir Comprando
                 </button>
               </div>
 
-              <div className="mt-6 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <p className="text-sm text-purple-700 dark:text-purple-400">
+              <div className="mt-4 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <p className="text-xs text-purple-700 dark:text-purple-400">
                   💡 <strong>Para ver el pago en Stripe:</strong> Ve a dashboard.stripe.com → Payments → Busca el ID: {stripePaymentId}
                 </p>
               </div>
