@@ -65,7 +65,7 @@ export const FavoritesModal: React.FC<FavoritesModalProps> = ({ isOpen, onClose 
 
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-gray-900 dark:text-white text-sm truncate">{item.name}</h3>
-                    <p className="text-red-600 dark:text-red-400 font-bold text-lg">${item.price.toLocaleString()}</p>
+                    <p className="text-red-600 dark:text-red-400 font-bold text-lg">S/. {item.price.toLocaleString()}</p>
                     <span
                       className={`text-xs font-medium px-2 py-1 rounded-full inline-block mt-1 ${
                         item.inStock

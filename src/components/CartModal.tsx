@@ -111,10 +111,10 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-900 dark:text-white text-sm truncate">{item.name}</h3>
                         <p className="text-red-600 dark:text-red-400 font-bold text-lg">
-                          ${item.price.toLocaleString()}
+                          S/. {item.price.toLocaleString()}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Subtotal: ${(item.price * item.quantity).toLocaleString()}
+                          Subtotal: S/. {(item.price * item.quantity).toLocaleString()}
                         </p>
                       </div>
 
@@ -216,7 +216,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
                   <span className="font-semibold text-gray-900 dark:text-white">
-                    ${getTotalPrice().toLocaleString()}
+                    S/. {getTotalPrice().toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
@@ -226,7 +226,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
                 <div className="border-t border-gray-300 dark:border-gray-600 pt-2 flex justify-between items-center">
                   <span className="text-lg font-bold text-gray-900 dark:text-white">Total:</span>
                   <span className="text-2xl font-bold text-red-600 dark:text-red-400">
-                    ${getTotalPrice().toLocaleString()}
+                    S/. {getTotalPrice().toLocaleString()}
                   </span>
                 </div>
               </div>
