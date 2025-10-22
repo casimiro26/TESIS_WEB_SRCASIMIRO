@@ -98,31 +98,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Cargar productos desde la API exclusivamente
+  // Cargar productos desde la API (ahora sin requerir autenticación)
   const loadProducts = async (): Promise<void> => {
     try {
       setLoading(true)
       setError(null)
-      
+
+      // Preparar headers, pero sin incluir Authorization
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json"
+      }
+
+      // Opcionalmente, incluir token solo si existe (para filtros de admin)
       const token = getAuthToken()
-      if (!token) {
-        throw new Error("No authentication token found. Please log in to load products.")
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
       }
 
       const response = await fetch("https://api-web-egdy.onrender.com/api/productos", {
         method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+        headers
       })
 
-      if (response.status === 401 || response.status === 403) {
-        throw new Error("Authentication failed. Please log in again to access products.")
-      }
-
       if (!response.ok) {
-        throw new Error(`Failed to fetch products: ${response.statusText}`)
+        const errorData = await response.json().catch(() => ({ mensaje: "Failed to fetch products" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
       }
 
       const apiData = await response.json()

@@ -27,32 +27,13 @@ function App() {
   const { products } = useStore()
   const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
-  const [reviews, setReviews] = useState<{ [productId: string]: Review[] }>({
-    // Initial static reviews for all products
-    ...products.reduce((acc, product) => ({
-      ...acc,
-      [product.id]: [
-        {
-          id: 1,
-          userName: "Juan Pérez",
-          rating: 5,
-          text: "Excelente producto, superó mis expectativas. La calidad es muy buena y llegó en perfectas condiciones.",
-          likes: 0,
-          likedBy: [],
-        },
-        {
-          id: 2,
-          userName: "María García",
-          rating: 4,
-          text: "Muy buen producto, aunque el envío tardó un poco más de lo esperado. En general, recomendado.",
-          likes: 0,
-          likedBy: [],
-        },
-      ],
-    }), {}),
-  })
+  const [reviews, setReviews] = useState<{ [productId: string]: Review[] }>({})
+  const [loadingReviews, setLoadingReviews] = useState(false)
+  const [submittingReview, setSubmittingReview] = useState(false)
   const [newReview, setNewReview] = useState({ rating: 0, text: "" })
   const [reviewError, setReviewError] = useState("")
+
+  const API_BASE_URL = "https://api-web-egdy.onrender.com"
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -82,59 +63,116 @@ function App() {
     return Array.from(new Set(products.map(p => p.category))).sort()
   }, [products])
 
+  // Fetch reviews when selectedProduct changes
+  useEffect(() => {
+    if (selectedProduct) {
+      fetchReviews(selectedProduct.id)
+      setNewReview({ rating: 0, text: "" })
+      setReviewError("")
+    }
+  }, [selectedProduct])
+
+  const fetchReviews = async (productId: string | number) => {
+    if (!productId) return
+    setLoadingReviews(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reviews/${productId}`)
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`)
+      }
+      const data = await response.json()
+      setReviews(prev => ({ ...prev, [productId.toString()]: data.reviews || [] }))
+    } catch (error) {
+      console.error("Error fetching reviews:", error)
+      setReviewError("Error al cargar reseñas")
+    } finally {
+      setLoadingReviews(false)
+    }
+  }
+
   const handleViewProduct = (product: Product) => {
     setSelectedProduct(product)
     setActiveTab("descripcion")
   }
 
-  const handleSubmitReview = (productId: string) => {
-    if (!user) {
-      setAuthModal({ type: "login", isOpen: true })
-      return
+  // En la función handleSubmitReview, cambia esta parte:
+const handleSubmitReview = async (productId: string | number) => {
+  if (!user) {
+    setAuthModal({ type: "login", isOpen: true })
+    return
+  }
+  if (newReview.rating < 1 || newReview.rating > 5) {
+    setReviewError("Por favor selecciona una calificación entre 1 y 5 estrellas")
+    return
+  }
+  if (!user.token) {
+    setReviewError("Sesión expirada. Inicia sesión nuevamente.")
+    setAuthModal({ type: "login", isOpen: true })
+    return
+  }
+  
+  setSubmittingReview(true)
+  setReviewError("")
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/reviews/${productId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${user.token}`
+      },
+      body: JSON.stringify({
+        rating: newReview.rating,
+        text: newReview.text.trim() || "Sin comentario"
+      })
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.mensaje || `Error ${response.status}: ${response.statusText}`)
     }
-    if (newReview.rating < 1 || newReview.rating > 5) {
-      setReviewError("Por favor selecciona una calificación entre 1 y 5 estrellas")
-      return
-    }
-    setReviews((prev) => ({
-      ...prev,
-      [productId]: [
-        ...(prev[productId] || []),
-        {
-          id: (prev[productId]?.length || 0) + 1,
-          userName: user.name,
-          rating: newReview.rating,
-          text: newReview.text.trim() || "Sin comentario",
-          likes: 0,
-          likedBy: [],
-        },
-      ],
-    }))
+    
+    const result = await response.json()
     setNewReview({ rating: 0, text: "" })
-    setReviewError("")
+    await fetchReviews(productId) // Refetch para mostrar la nueva
+    
+    // ÉXITO - No mostrar modal de bienvenida
+    console.log("Reseña enviada exitosamente:", result)
+    
+  } catch (error: any) {
+    console.error("Error submitting review:", error)
+    setReviewError(error.message || "Error al enviar reseña")
+  } finally {
+    setSubmittingReview(false)
+  }
+}
+
+  const handleToggleLike = async (productId: string | number, reviewId: number) => {
+    if (!user || user.isAdmin || !user.token) {
+      if (!user?.token) setAuthModal({ type: "login", isOpen: true })
+      return
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reviews/${productId}/${reviewId}/like`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${user.token}`
+        }
+      })
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`)
+      }
+      await response.json()
+      fetchReviews(productId)
+    } catch (error: any) {
+      console.error("Error toggling like:", error)
+    }
   }
 
-  const handleToggleLike = (productId: string, reviewId: number) => {
-    if (!user || user.isAdmin) {
-      return; // Los administradores no pueden dar "me gusta"
-    }
-    setReviews((prev) => {
-      const productReviews = prev[productId] || []
-      const updatedReviews = productReviews.map((review) => {
-        if (review.id === reviewId) {
-          const isLiked = review.likedBy.includes(user.name)
-          return {
-            ...review,
-            likes: isLiked ? review.likes - 1 : review.likes + 1,
-            likedBy: isLiked
-              ? review.likedBy.filter((name) => name !== user.name)
-              : [...review.likedBy, user.name],
-          }
-        }
-        return review
-      })
-      return { ...prev, [productId]: updatedReviews }
-    })
+  // Función para verificar si el usuario actual dio like a una reseña
+  const hasUserLiked = (review: Review) => {
+    return user && review.likedBy.includes(user.id)
   }
 
   const filteredProducts = useMemo(() => {
@@ -166,10 +204,9 @@ function App() {
     return filtered
   }, [products, searchTerm, selectedCategory, sortBy, priceRange, showInStockOnly])
 
-  // Split filtered products into chunks of 5 for multiple rows (first row can have up to 6 for carousel)
   const productRows = useMemo(() => {
     const rows = []
-    const firstRow = filteredProducts.slice(0, 6) // First row up to 6 for carousel
+    const firstRow = filteredProducts.slice(0, 6)
     if (firstRow.length > 0) {
       rows.push(firstRow)
     }
@@ -323,9 +360,6 @@ function App() {
                   <ProductsCarousel
                     products={row}
                     onViewDetails={handleViewProduct}
-                    textSize="small"
-                    priceSize="sm"
-                    nameSize="sm"
                   />
                 ) : (
                   <div className={`grid gap-6 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5" : "grid-cols-1"}`}>
@@ -350,7 +384,7 @@ function App() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (!user || user.isAdmin) {
-                                  return; // Los administradores no pueden dar "me gusta"
+                                  return;
                                 } else {
                                   const isFav = favorites.some((fav) => fav.id === product.id);
                                   if (isFav) {
@@ -536,7 +570,7 @@ function App() {
                           if (!user) {
                             setAuthModal({ type: "login", isOpen: true })
                             setSelectedProduct(null)
-                          } else if (!user.isAdmin) { // Solo no administradores pueden dar "me gusta"
+                          } else if (!user.isAdmin) {
                             const isFav = favorites.some((fav) => fav.id === selectedProduct.id)
                             if (isFav) {
                               removeFromFavorites(selectedProduct.id)
@@ -637,8 +671,8 @@ function App() {
                           {selectedProduct.characteristics
                             ? selectedProduct.characteristics
                                 .split('\n')
-                                .filter(char => char.trim())
-                                .map((char, i) => <p key={i}>{char}</p>)
+                                .filter((char: string) => char.trim())
+                                .map((char: string, i: number) => <p key={i}>{char}</p>)
                             : <p>No hay características disponibles.</p>}
                         </div>
                       </div>
@@ -677,50 +711,59 @@ function App() {
                               {reviewError && <p className="text-red-500 text-sm">{reviewError}</p>}
                               <button
                                 onClick={() => handleSubmitReview(selectedProduct.id)}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                                disabled={submittingReview || loadingReviews}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50"
                               >
-                                Enviar Reseña
+                                {submittingReview ? "Enviando..." : "Enviar Reseña"}
                               </button>
                             </div>
                           </div>
                         )}
-                        <div className="space-y-4">
-                          {(reviews[selectedProduct.id] || []).map((review) => (
-                            <div key={review.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <div className="flex">
-                                    {[...Array(5)].map((_, i) => (
-                                      <span
-                                        key={i}
-                                        className={`text-yellow-400 ${i >= review.rating ? "text-gray-300 dark:text-gray-600" : ""}`}
-                                      >
-                                        ★
+                        {loadingReviews ? (
+                          <p className="text-gray-600 dark:text-gray-400">Cargando reseñas...</p>
+                        ) : (
+                          <div className="space-y-4">
+                            {reviews[selectedProduct.id.toString()]?.length > 0 ? (
+                              reviews[selectedProduct.id.toString()].map((review) => (
+                                <div key={review.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex">
+                                        {[...Array(5)].map((_, i) => (
+                                          <span
+                                            key={i}
+                                            className={`text-yellow-400 ${i >= review.rating ? "text-gray-300 dark:text-gray-600" : ""}`}
+                                          >
+                                            ★
+                                          </span>
+                                        ))}
+                                      </div>
+                                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                        {review.userName}
                                       </span>
-                                    ))}
+                                    </div>
+                                    {!user?.isAdmin && (
+                                      <button
+                                        onClick={() => handleToggleLike(selectedProduct.id, review.id)}
+                                        className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                                      >
+                                        <Heart
+                                          className={`w-5 h-5 ${
+                                            hasUserLiked(review) ? "fill-red-600 text-red-600" : ""
+                                          }`}
+                                        />
+                                        <span>{review.likes}</span>
+                                      </button>
+                                    )}
                                   </div>
-                                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                    {review.userName}
-                                  </span>
+                                  <p className="text-gray-700 dark:text-gray-300">{review.text}</p>
                                 </div>
-                                {!user?.isAdmin && (
-                                  <button
-                                    onClick={() => handleToggleLike(selectedProduct.id, review.id)}
-                                    className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                                  >
-                                    <Heart
-                                      className={`w-5 h-5 ${
-                                        user && review.likedBy.includes(user.name) ? "fill-red-600 text-red-600" : ""
-                                      }`}
-                                    />
-                                    <span>{review.likes}</span>
-                                  </button>
-                                )}
-                              </div>
-                              <p className="text-gray-700 dark:text-gray-300">{review.text}</p>
-                            </div>
-                          ))}
-                        </div>
+                              ))
+                            ) : (
+                              <p className="text-gray-500 dark:text-gray-400 text-center italic">No hay reseñas aún. ¡Sé el primero en dejar una!</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

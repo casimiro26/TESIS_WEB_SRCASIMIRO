@@ -1,8 +1,11 @@
 export interface Review {
-  user: string;
-  comment: string;
+  id: number;
+  userName: string;
   rating: number;
-  date: string;
+  text: string;
+  likes: number;
+  likedBy: string[];
+  date?: string; // Opcional para compatibilidad con tu estructura anterior
 }
 
 export interface Product {
@@ -96,6 +99,7 @@ export interface User {
   email: string;
   rol: string;
   isAdmin: boolean;
+  token?: string; // Agregado para auth con API
 }
 
 export interface ApiUser {

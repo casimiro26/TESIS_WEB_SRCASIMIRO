@@ -258,7 +258,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const { 
     orders, 
     confirmReceipt, 
-    loading: storeLoading,
     error: storeError,
     clearError
   } = useStore()
