@@ -23,6 +23,8 @@ import {
   Plus,
   Edit,
   Image as ImageIcon,
+  CreditCard,
+  ShoppingCart,
 } from "lucide-react"
 import {
   Chart as ChartJS,
@@ -72,37 +74,87 @@ interface Category {
   descripcion: string
 }
 
+interface Pago {
+  id_pago: number
+  userId: string
+  userModel: "Usuario" | "Cliente"
+  monto: number
+  stripePaymentId: string
+  status: "pending" | "succeeded" | "failed"
+  createdAt: string
+}
+
 // Configuración de la API
 const API_BASE_URL = "https://api-web-egdy.onrender.com/api"
 
-const calculateMonthlySales = (orders: Order[]): number[] => {
-  const monthlySales = [0, 0, 0, 0, 0, 0]
-  
-  orders.forEach(order => {
-    const orderDate = new Date(order.date)
-    const monthDiff = (new Date().getMonth() - orderDate.getMonth() + 12) % 12
-    
-    if (monthDiff < 6) {
-      monthlySales[5 - monthDiff] += order.total
+// Servicio para pagos
+const pagoService = {
+  // Obtener todos los pagos (para admin)
+  getPagos: async (token: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/pagos`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+
+      if (!response.ok) {
+        // Si falla, retornar array vacío en lugar de error
+        return { pagos: [] }
+      }
+
+      return response.json()
+    } catch (error) {
+      console.error("Error fetching payments:", error)
+      return { pagos: [] }
     }
-  })
-  
-  return monthlySales
+  }
 }
 
-const calculateCategoryDistribution = (products: Product[]): Record<string, number> => {
-  const distribution: Record<string, number> = {}
-  
-  products.forEach(product => {
-    distribution[product.category] = (distribution[product.category] || 0) + 1
-  })
-  
-  return distribution
+// Servicio para estadísticas
+const statsService = {
+  // Obtener estadísticas reales
+  getEstadisticas: async (token: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/estadisticas`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+
+      if (!response.ok) {
+        // Si falla, retornar estadísticas por defecto
+        return {
+          totalClientes: 0,
+          totalProductos: 0,
+          totalPedidos: 0,
+          ingresosTotales: 0,
+          ventasMensuales: [0, 0, 0, 0, 0, 0],
+          distribucionCategorias: {}
+        }
+      }
+
+      return response.json()
+    } catch (error) {
+      console.error("Error fetching statistics:", error)
+      return {
+        totalClientes: 0,
+        totalProductos: 0,
+        totalPedidos: 0,
+        ingresosTotales: 0,
+        ventasMensuales: [0, 0, 0, 0, 0, 0],
+        distribucionCategorias: {}
+      }
+    }
+  }
 }
 
 // Servicio para productos
 const productoService = {
-  // Obtener productos
   getProductos: async (token: string) => {
     const response = await fetch(`${API_BASE_URL}/productos`, {
       method: "GET",
@@ -120,7 +172,6 @@ const productoService = {
     return response.json()
   },
 
-  // Crear producto
   crearProducto: async (token: string, productoData: any) => {
     const response = await fetch(`${API_BASE_URL}/productos`, {
       method: "POST",
@@ -139,7 +190,6 @@ const productoService = {
     return response.json()
   },
 
-  // Actualizar producto
   actualizarProducto: async (token: string, id: number, productoData: any) => {
     const response = await fetch(`${API_BASE_URL}/productos/${id}`, {
       method: "PUT",
@@ -158,7 +208,6 @@ const productoService = {
     return response.json()
   },
 
-  // Eliminar producto
   eliminarProducto: async (token: string, id: number) => {
     const response = await fetch(`${API_BASE_URL}/productos/${id}`, {
       method: "DELETE",
@@ -179,7 +228,6 @@ const productoService = {
 
 // Servicio para categorías
 const categoriaService = {
-  // Obtener categorías
   getCategorias: async (token: string) => {
     const response = await fetch(`${API_BASE_URL}/admin/categorias`, {
       method: "GET",
@@ -197,7 +245,6 @@ const categoriaService = {
     return response.json()
   },
 
-  // Crear categoría
   crearCategoria: async (token: string, categoriaData: any) => {
     const response = await fetch(`${API_BASE_URL}/admin/crear-categoria`, {
       method: "POST",
@@ -216,7 +263,6 @@ const categoriaService = {
     return response.json()
   },
 
-  // Actualizar categoría
   actualizarCategoria: async (token: string, id: number, categoriaData: any) => {
     const response = await fetch(`${API_BASE_URL}/admin/categorias/${id}`, {
       method: "PUT",
@@ -235,7 +281,6 @@ const categoriaService = {
     return response.json()
   },
 
-  // Eliminar categoría
   eliminarCategoria: async (token: string, id: number) => {
     const response = await fetch(`${API_BASE_URL}/admin/categorias/${id}`, {
       method: "DELETE",
@@ -290,6 +335,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [editCategory, setEditCategory] = useState<Category | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [pagos, setPagos] = useState<Pago[]>([])
   const [errors, setErrors] = useState({
     name: "",
     category: "",
@@ -309,6 +355,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [productFilter, setProductFilter] = useState("Todos")
   const [refreshing, setRefreshing] = useState(false)
   const [imagePreview, setImagePreview] = useState("")
+  const [estadisticasReales, setEstadisticasReales] = useState({
+    totalClientes: 0,
+    totalProductos: 0,
+    totalPedidos: 0,
+    ingresosTotales: 0,
+    ventasMensuales: [0, 0, 0, 0, 0, 0],
+    distribucionCategorias: {} as Record<string, number>
+  })
 
   // Función para obtener el token
   const getToken = (): string => {
@@ -319,6 +373,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     return token
   }
 
+  const loadEstadisticasReales = async () => {
+    try {
+      const token = getToken()
+      const data = await statsService.getEstadisticas(token)
+      setEstadisticasReales(data)
+    } catch (error: any) {
+      console.error("Error loading statistics:", error)
+      // Usar datos por defecto en caso de error
+      setEstadisticasReales({
+        totalClientes: 0,
+        totalProductos: products.length,
+        totalPedidos: orders.length,
+        ingresosTotales: 0,
+        ventasMensuales: [0, 0, 0, 0, 0, 0],
+        distribucionCategorias: calculateCategoryDistribution(products)
+      })
+    }
+  }
+
+  const loadPagos = async () => {
+    try {
+      const token = getToken()
+      const data = await pagoService.getPagos(token)
+      setPagos(data.pagos || [])
+    } catch (error: any) {
+      console.error("Error loading payments:", error)
+      setPagos([])
+    }
+  }
+
   const loadCategories = async () => {
     try {
       const token = getToken()
@@ -327,7 +411,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     } catch (error: any) {
       console.error("Error loading categories:", error)
       setToast({ message: error.message || "Error al cargar categorías", type: "error" })
-      // Categorías por defecto en caso de error
       const defaultCategories: Category[] = [
         { id_categoria: 1, nombre: "Laptops", descripcion: "Computadoras portátiles" },
         { id_categoria: 2, nombre: "Smartphones", descripcion: "Teléfonos inteligentes" },
@@ -343,7 +426,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       const token = getToken()
       const data = await productoService.getProductos(token)
       const mappedProducts = (data.productos || []).map((p: any) => ({
-        id: p.id_producto,
+        id: p.id_producto?.toString() || p._id,
         id_producto: p.id_producto,
         name: p.nombre,
         category: p.categoria,
@@ -455,30 +538,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     if (isOpen) {
       loadCategories()
       loadProducts()
+      loadPagos()
+      loadEstadisticasReales()
     }
   }, [isOpen])
 
-  const stats = useMemo(() => {
-    const activeCustomers = 1
-    const activeProducts = products.filter(p => p.inStock).length
-    const totalOrders = orders.length
-    const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
-    const monthlySales = calculateMonthlySales(orders)
-    const categoryDistribution = calculateCategoryDistribution(products)
+  // Calcular estadísticas REALES basadas en datos de la API
+  const calculateRealStats = () => {
+    // Pagos exitosos (solo estos cuentan como ingresos reales)
+    const pagosExitosos = pagos.filter(pago => pago.status === 'succeeded')
+    const ingresosReales = pagosExitosos.reduce((sum, pago) => sum + pago.monto, 0)
+
+    // Productos en stock
+    const productosEnStock = products.filter(p => p.inStock).length
 
     return {
-      activeCustomers,
-      activeProducts,
-      totalOrders,
-      totalRevenue,
-      monthlySales,
-      categoryDistribution,
+      activeCustomers: estadisticasReales.totalClientes || 1, // Mínimo 1 (el admin)
+      activeProducts: productosEnStock,
+      totalOrders: orders.length,
+      totalRevenue: ingresosReales, // SOLO pagos exitosos
+      monthlySales: estadisticasReales.ventasMensuales,
+      categoryDistribution: estadisticasReales.distribucionCategorias || calculateCategoryDistribution(products),
     }
-  }, [products, orders])
+  }
+
+  const calculateCategoryDistribution = (products: Product[]): Record<string, number> => {
+    const distribution: Record<string, number> = {}
+    products.forEach(product => {
+      distribution[product.category] = (distribution[product.category] || 0) + 1
+    })
+    return distribution
+  }
+
+  const stats = useMemo(() => calculateRealStats(), [products, orders, pagos, estadisticasReales])
 
   const recentActivities = useMemo(() => {
     const activities: Activity[] = []
 
+    // Actividades de pedidos reales
     orders.slice(0, 3).forEach((order) => {
       activities.push({
         id: `order-${order.id}`,
@@ -488,19 +585,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       })
     })
 
-    products.slice(0, 2).forEach((product) => {
-      activities.push({
-        id: `product-${product.id}`,
-        type: "product_added",
-        description: `Producto "${product.name}" agregado al inventario`,
-        timestamp: new Date().toISOString(),
+    // Actividades de pagos exitosos
+    pagos
+      .filter(pago => pago.status === 'succeeded')
+      .slice(0, 2)
+      .forEach((pago) => {
+        activities.push({
+          id: `payment-${pago.id_pago}`,
+          type: "payment_confirmed",
+          description: `Pago confirmado #${pago.id_pago} por S/${pago.monto.toFixed(2)}`,
+          timestamp: pago.createdAt,
+        })
       })
-    })
+
+    // Actividades de productos agregados recientemente
+    products
+      .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())
+      .slice(0, 2)
+      .forEach((product) => {
+        activities.push({
+          id: `product-${product.id}`,
+          type: "product_added",
+          description: `Producto "${product.name}" agregado al inventario`,
+          timestamp: product.createdAt || new Date().toISOString(),
+        })
+      })
 
     return activities
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 5)
-  }, [orders, products])
+  }, [orders, products, pagos])
 
   const activityChartData = useMemo(() => {
     const days = 7
@@ -861,10 +975,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
           </h2>
           <div className="flex items-center gap-3">
             <button
-              onClick={handleRefreshProducts}
+              onClick={async () => {
+                setRefreshing(true)
+                await Promise.all([
+                  loadProducts(),
+                  loadCategories(),
+                  loadPagos(),
+                  loadEstadisticasReales()
+                ])
+                setRefreshing(false)
+                setToast({ message: "Datos actualizados", type: "success" })
+              }}
               disabled={refreshing || isLoading}
               className="p-2 hover:bg-white/20 rounded-full transition-colors text-white disabled:opacity-50"
-              aria-label="Actualizar productos"
+              aria-label="Actualizar datos"
             >
               <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
@@ -886,6 +1010,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                 { id: "products", label: "Productos", icon: Package },
                 { id: "categories", label: "Categorías", icon: Tag },
                 { id: "orders", label: "Pedidos", icon: ShoppingBag },
+                { id: "payments", label: "Pagos", icon: CreditCard },
                 { id: "users", label: "Usuarios", icon: Users },
               ].map((tab) => (
                 <button
@@ -911,7 +1036,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     {isLoading && (
                       <div className="flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Cargando productos...</span>
+                        <span>Cargando datos...</span>
                       </div>
                     )}
                   </div>
@@ -948,7 +1073,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       <p className="text-gray-600 font-medium">Ingresos Totales</p>
                     </div>
                     <p className="text-3xl font-bold text-red-600 mt-2">S/{stats.totalRevenue.toFixed(2)}</p>
-                    <p className="text-sm text-gray-500 mt-1">En soles peruanos</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {pagos.filter(p => p.status === 'succeeded').length} pagos exitosos
+                    </p>
                   </div>
                 </div>
 
@@ -1448,6 +1575,91 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                                     </button>
                                   )}
                                 </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "payments" && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-gray-900">Gestión de Pagos</h3>
+                </div>
+                
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <div className="mb-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Resumen de Pagos</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <p className="text-green-800 font-semibold">Exitosos</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          {pagos.filter(p => p.status === 'succeeded').length}
+                        </p>
+                      </div>
+                      <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                        <p className="text-yellow-800 font-semibold">Pendientes</p>
+                        <p className="text-2xl font-bold text-yellow-600">
+                          {pagos.filter(p => p.status === 'pending').length}
+                        </p>
+                      </div>
+                      <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                        <p className="text-red-800 font-semibold">Fallidos</p>
+                        <p className="text-2xl font-bold text-red-600">
+                          {pagos.filter(p => p.status === 'failed').length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {pagos.length === 0 ? (
+                    <div className="text-center py-12">
+                      <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 text-lg">No hay pagos registrados</p>
+                      <p className="text-gray-400 text-sm mt-2">Los pagos aparecerán aquí cuando los clientes realicen transacciones</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 text-gray-900 border-b border-gray-200">
+                            <th className="p-4 font-semibold">ID Pago</th>
+                            <th className="p-4 font-semibold">Monto</th>
+                            <th className="p-4 font-semibold">Estado</th>
+                            <th className="p-4 font-semibold">Fecha</th>
+                            <th className="p-4 font-semibold">ID Stripe</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pagos.map((pago) => (
+                            <tr key={pago.id_pago} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                              <td className="p-4 text-gray-900 font-medium">#{pago.id_pago}</td>
+                              <td className="p-4 text-gray-900 font-medium">S/{pago.monto.toFixed(2)}</td>
+                              <td className="p-4">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    pago.status === 'succeeded' 
+                                      ? "bg-green-100 text-green-800"
+                                      : pago.status === 'pending'
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : "bg-red-100 text-red-800"
+                                  }`}
+                                >
+                                  {pago.status === 'succeeded' && "Exitoso"}
+                                  {pago.status === 'pending' && "Pendiente"}
+                                  {pago.status === 'failed' && "Fallido"}
+                                </span>
+                              </td>
+                              <td className="p-4 text-gray-900">
+                                {new Date(pago.createdAt).toLocaleDateString('es-PE')}
+                              </td>
+                              <td className="p-4 text-gray-900 text-sm font-mono">
+                                {pago.stripePaymentId}
                               </td>
                             </tr>
                           ))}
