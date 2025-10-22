@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
-// Definición única de heroImages
 const heroImages = [
   {
     url: "../assets/images/prod.png",
@@ -61,7 +60,7 @@ export const HeroCarousel = () => {
       <div className="max-w-6xl mx-auto px-4 py-10 relative z-10">
         {/* Título y descripción con animaciones mejoradas */}
         <div className="text-center mb-6">
-          <h1 className="text-3xl md:text-4xl font-extrabold mb-2 bg-gradient-to-r from-white to-red-200 bg-clip-text text-transparent tracking-tight animate-pulse-in whitespace-normal break-words">
+          <h1 className="text-3xl md:text-4xl font-extrabold mb-2 bg-gradient-to-r from-white to-red-200 bg-clip-text text-transparent tracking-tight whitespace-normal break-words animate-pulse-in">
             Catálogo de Productos
           </h1>
           <p className="text-base md:text-lg text-red-100 mb-4 max-w-2xl mx-auto font-light leading-relaxed animate-slide-in-bottom border border-red-300/30 rounded-lg p-3 shadow-md hover:shadow-xl transition-shadow duration-500">
@@ -95,7 +94,7 @@ export const HeroCarousel = () => {
                 <img
                   src={image.url || "../assets/images/impre.png"}
                   alt={image.title}
-                  className="w-full h-full object-cover brightness-95 transition-transform duration-1000 group-hover:scale-103"
+                  className="w-full h-full object-cover brightness-95 transition-transform duration-1000 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent flex flex-col justify-end p-4 md:p-6">
                   <h3 className="text-xl md:text-3xl font-bold mb-1 animate-slide-in-left">{image.title}</h3>
@@ -108,13 +107,13 @@ export const HeroCarousel = () => {
           {/* Botones de navegación más pequeños */}
           <button
             onClick={prevSlide}
-            className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 backdrop-blur-lg p-2 rounded-full transition-all duration-300 hover:scale-110 hover:shadow-lg hover:-rotate-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 backdrop-blur-lg p-2 rounded-full transition-all duration-300 hover:scale-110 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-red-500"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={nextSlide}
-            className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 backdrop-blur-lg p-2 rounded-full transition-all duration-300 hover:scale-110 hover:shadow-lg hover:rotate-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 backdrop-blur-lg p-2 rounded-full transition-all duration-300 hover:scale-110 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-red-500"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -134,8 +133,8 @@ export const HeroCarousel = () => {
         </div>
       </div>
 
-      {/* Estilos CSS para animaciones personalizadas */}
-      <style jsx>{`
+      {/* Estilos CSS en línea para evitar el warning de jsx */}
+      <style>{`
         @keyframes pulse-in {
           0% {
             transform: scale(0.95);

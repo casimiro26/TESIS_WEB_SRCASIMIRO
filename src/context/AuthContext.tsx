@@ -7,8 +7,9 @@ interface User {
   id: string;
   name: string;
   email: string;
-  rol: string; // "user" | "admin" | "superadmin"
+  rol: string;
   isAdmin: boolean;
+  token?: string; // AÑADIDO: Token incluido en el user
 }
 
 interface AuthContextType {
@@ -22,7 +23,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Configurar axios base URL y interceptors
 const API_BASE_URL = "https://api-web-egdy.onrender.com";
 axios.defaults.baseURL = API_BASE_URL;
 
@@ -30,7 +30,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Función para decodificar JWT
   const decodeJWT = (token: string) => {
     try {
       const payload = token.split('.')[1];
@@ -42,7 +41,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Función para obtener el perfil del usuario
   const fetchUserProfile = async (token: string) => {
     try {
       const response = await axios.get("/api/perfil", {
@@ -57,7 +55,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Configurar interceptor para enviar token en todas las requests
   useEffect(() => {
     const interceptor = axios.interceptors.request.use(
       (config) => {
@@ -77,13 +74,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Interceptor para manejar errores de autenticación
   useEffect(() => {
     const responseInterceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
         if (error.response?.status === 401 || error.response?.status === 403) {
-          // Token inválido o expirado
           logout();
         }
         return Promise.reject(error);
@@ -95,31 +90,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Verificar token al cargar
   useEffect(() => {
     const checkAuth = async () => {
       const savedUser = localStorage.getItem("sr-robot-user");
       const savedToken = localStorage.getItem("sr-robot-token");
       
       if (savedUser && savedToken) {
-        // Verificar si el token es válido (no expirado)
         const decoded = decodeJWT(savedToken);
         if (decoded && decoded.exp * 1000 > Date.now()) {
-          // Verificar que el perfil aún existe en el backend
           try {
             const userProfile = await fetchUserProfile(savedToken);
             if (userProfile) {
-              setUser(JSON.parse(savedUser));
+              const userData = JSON.parse(savedUser);
+              // AÑADIDO: Incluir el token en el user
+              setUser({ ...userData, token: savedToken });
             } else {
-              // Perfil no encontrado en el backend
               logout();
             }
           } catch (error) {
-            // Error al verificar perfil
             logout();
           }
         } else {
-          // Token expirado
           logout();
         }
       }
@@ -143,7 +134,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("No se recibió token del servidor");
       }
 
-      // Obtener el perfil completo del usuario
       const userProfile = await fetchUserProfile(token);
       if (!userProfile) {
         throw new Error("No se pudo obtener el perfil del usuario");
@@ -157,6 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: userProfile.correo,
         rol,
         isAdmin,
+        token: token // AÑADIDO: Token incluido
       };
       
       setUser(userData);
@@ -181,7 +172,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // Validación adicional para correos corporativos
       if (email.endsWith("@srrobot.com")) {
         alert("Los correos @srrobot.com son solo para administradores. Usa un correo personal.");
         return false;
@@ -194,7 +184,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       if (response.data.mensaje) {
-        // Registro exitoso, ahora iniciar sesión automáticamente
         return await login(email, password);
       }
       
