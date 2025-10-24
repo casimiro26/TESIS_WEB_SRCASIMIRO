@@ -12,6 +12,7 @@ import {
   Trash2,
   Loader2,
   Eye,
+  EyeOff,
   CheckCircle,
   Search,
   Filter,
@@ -25,6 +26,8 @@ import {
   Image as ImageIcon,
   CreditCard,
   ShoppingCart,
+  UserPlus,
+  Shield,
 } from "lucide-react"
 import {
   Chart as ChartJS,
@@ -84,8 +87,60 @@ interface Pago {
   createdAt: string
 }
 
+interface Admin {
+  id: number
+  nombre: string
+  email: string
+  role: string
+  createdAt: string
+}
+
 // Configuración de la API
 const API_BASE_URL = "https://api-web-egdy.onrender.com/api"
+
+// Servicio para administradores
+const adminService = {
+  // Crear nuevo administrador
+  crearAdmin: async (token: string, adminData: any) => {
+    const response = await fetch(`${API_BASE_URL}/admin/crear-admin`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(adminData)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al crear administrador" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  // Obtener lista de administradores
+  getAdmins: async (token: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/admins`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+
+      if (!response.ok) {
+        return { admins: [] }
+      }
+
+      return response.json()
+    } catch (error) {
+      console.error("Error fetching admins:", error)
+      return { admins: [] }
+    }
+  }
+}
 
 // Servicio para pagos
 const pagoService = {
@@ -316,6 +371,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [showEditModal, setShowEditModal] = useState(false)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [showEditCategoryModal, setShowEditCategoryModal] = useState(false)
+  const [showCreateAdminModal, setShowCreateAdminModal] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [newProduct, setNewProduct] = useState({
     name: "",
     category: "",
@@ -331,11 +389,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     nombre: "",
     descripcion: ""
   })
+  const [newAdmin, setNewAdmin] = useState({
+    nombre: "",
+    email: "",
+    password: "",
+    confirmPassword: ""
+  })
   const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [editCategory, setEditCategory] = useState<Category | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [pagos, setPagos] = useState<Pago[]>([])
+  const [admins, setAdmins] = useState<Admin[]>([])
   const [errors, setErrors] = useState({
     name: "",
     category: "",
@@ -345,7 +410,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     description: "",
     characteristics: "",
     productCode: "",
-    categoryName: ""
+    categoryName: "",
+    adminName: "",
+    adminEmail: "",
+    adminPassword: "",
+    adminConfirmPassword: ""
   })
   const [isLoading, setIsLoading] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
@@ -403,6 +472,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     }
   }
 
+  const loadAdmins = async () => {
+    try {
+      const token = getToken()
+      const data = await adminService.getAdmins(token)
+      setAdmins(data.admins || [])
+    } catch (error: any) {
+      console.error("Error loading admins:", error)
+      setAdmins([])
+    }
+  }
+
   const loadCategories = async () => {
     try {
       const token = getToken()
@@ -449,6 +529,80 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       console.error("Error loading products:", error)
       setToast({ message: error.message || "Error al cargar productos", type: "error" })
       setProducts([])
+    }
+  }
+
+  const handleCreateAdmin = async () => {
+    // Validaciones
+    const newErrors = {
+      adminName: "",
+      adminEmail: "",
+      adminPassword: "",
+      adminConfirmPassword: ""
+    }
+    
+    let isValid = true
+
+    if (!newAdmin.nombre.trim()) {
+      newErrors.adminName = "El nombre es requerido"
+      isValid = false
+    }
+
+    if (!newAdmin.email.trim()) {
+      newErrors.adminEmail = "El email es requerido"
+      isValid = false
+    } else if (!/\S+@\S+\.\S+/.test(newAdmin.email)) {
+      newErrors.adminEmail = "El email no es válido"
+      isValid = false
+    }
+
+    if (!newAdmin.password) {
+      newErrors.adminPassword = "La contraseña es requerida"
+      isValid = false
+    } else if (newAdmin.password.length < 6) {
+      newErrors.adminPassword = "La contraseña debe tener al menos 6 caracteres"
+      isValid = false
+    }
+
+    if (!newAdmin.confirmPassword) {
+      newErrors.adminConfirmPassword = "Confirma la contraseña"
+      isValid = false
+    } else if (newAdmin.password !== newAdmin.confirmPassword) {
+      newErrors.adminConfirmPassword = "Las contraseñas no coinciden"
+      isValid = false
+    }
+
+    setErrors(prev => ({ ...prev, ...newErrors }))
+    
+    if (!isValid) return
+
+    setIsLoading(true)
+    try {
+      const token = getToken()
+      const adminData = {
+        nombre: newAdmin.nombre,
+        email: newAdmin.email,
+        password: newAdmin.password
+      }
+
+      await adminService.crearAdmin(token, adminData)
+      
+      await loadAdmins()
+      setShowCreateAdminModal(false)
+      setNewAdmin({
+        nombre: "",
+        email: "",
+        password: "",
+        confirmPassword: ""
+      })
+      setShowPassword(false)
+      setShowConfirmPassword(false)
+      setToast({ message: "Administrador creado con éxito", type: "success" })
+    } catch (error: any) {
+      console.error("Error creating admin:", error)
+      setToast({ message: error.message || "Error al crear administrador", type: "error" })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -540,6 +694,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       loadProducts()
       loadPagos()
       loadEstadisticasReales()
+      loadAdmins()
     }
   }, [isOpen])
 
@@ -687,7 +842,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       description: "",
       characteristics: "",
       productCode: "",
-      categoryName: ""
+      categoryName: "",
+      adminName: "",
+      adminEmail: "",
+      adminPassword: "",
+      adminConfirmPassword: ""
     }
     let isValid = true
 
@@ -823,7 +982,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
         description: "",
         characteristics: "",
         productCode: "",
-        categoryName: ""
+        categoryName: "",
+        adminName: "",
+        adminEmail: "",
+        adminPassword: "",
+        adminConfirmPassword: ""
       })
       setToast({ message: "Producto creado con éxito", type: "success" })
     } catch (error: any) {
@@ -885,7 +1048,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
         description: "",
         characteristics: "",
         productCode: "",
-        categoryName: ""
+        categoryName: "",
+        adminName: "",
+        adminEmail: "",
+        adminPassword: "",
+        adminConfirmPassword: ""
       })
       setToast({ message: "Producto actualizado con éxito", type: "success" })
     } catch (error: any) {
@@ -981,7 +1148,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                   loadProducts(),
                   loadCategories(),
                   loadPagos(),
-                  loadEstadisticasReales()
+                  loadEstadisticasReales(),
+                  loadAdmins()
                 ])
                 setRefreshing(false)
                 setToast({ message: "Datos actualizados", type: "success" })
@@ -1674,29 +1842,179 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
             {activeTab === "users" && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h3>
+                  <h3 className="text-2xl font-bold text-gray-900">Gestión de Administradores</h3>
+                  <button
+                    onClick={() => setShowCreateAdminModal(true)}
+                    className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
+                  >
+                    <UserPlus className="w-5 h-5" />
+                    Crear Administrador
+                  </button>
                 </div>
                 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                  <div className="text-center py-12">
-                    <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500 text-lg">Módulo de Usuarios en Desarrollo</p>
-                    <p className="text-gray-400 text-sm mt-2">
-                      Esta funcionalidad estará disponible próximamente. 
-                      Aquí podrás gestionar usuarios, roles y permisos.
-                    </p>
-                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200 max-w-md mx-auto">
-                      <p className="text-blue-800 text-sm">
-                        <strong>Próximamente:</strong> Ver lista de usuarios, editar roles, 
-                        gestionar permisos y ver estadísticas de uso.
+                  {admins.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 text-lg">No hay administradores registrados</p>
+                      <p className="text-gray-400 text-sm mt-2">
+                        Crea el primer administrador para gestionar el sistema
                       </p>
                     </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 text-gray-900 border-b border-gray-200">
+                            <th className="p-4 font-semibold">ID</th>
+                            <th className="p-4 font-semibold">Nombre</th>
+                            <th className="p-4 font-semibold">Email</th>
+                            <th className="p-4 font-semibold">Rol</th>
+                            <th className="p-4 font-semibold">Fecha de Creación</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {admins.map((admin) => (
+                            <tr key={admin.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                              <td className="p-4 text-gray-900 font-medium">#{admin.id}</td>
+                              <td className="p-4 text-gray-900">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                                    <Users className="w-5 h-5 text-red-600" />
+                                  </div>
+                                  <span>{admin.nombre}</span>
+                                </div>
+                              </td>
+                              <td className="p-4 text-gray-900">{admin.email}</td>
+                              <td className="p-4">
+                                <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                                  {admin.role}
+                                </span>
+                              </td>
+                              <td className="p-4 text-gray-900">
+                                {new Date(admin.createdAt).toLocaleDateString('es-PE')}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Modal para crear administrador */}
+            {showCreateAdminModal && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-900">Crear Nuevo Administrador</h3>
+                    <button
+                      onClick={() => {
+                        setShowCreateAdminModal(false)
+                        setShowPassword(false)
+                        setShowConfirmPassword(false)
+                      }}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nombre Completo</label>
+                      <input
+                        type="text"
+                        value={newAdmin.nombre}
+                        onChange={(e) => setNewAdmin({ ...newAdmin, nombre: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="Ej: Juan Pérez"
+                      />
+                      {errors.adminName && <p className="text-red-600 text-sm mt-1">{errors.adminName}</p>}
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={newAdmin.email}
+                        onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="ejemplo@correo.com"
+                      />
+                      {errors.adminEmail && <p className="text-red-600 text-sm mt-1">{errors.adminEmail}</p>}
+                    </div>
+                    
+                    <div className="relative">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={newAdmin.password}
+                          onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
+                          className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                          placeholder="Mínimo 6 caracteres"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                      {errors.adminPassword && <p className="text-red-600 text-sm mt-1">{errors.adminPassword}</p>}
+                    </div>
+                    
+                    <div className="relative">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Confirmar Contraseña</label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          value={newAdmin.confirmPassword}
+                          onChange={(e) => setNewAdmin({ ...newAdmin, confirmPassword: e.target.value })}
+                          className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                          placeholder="Repite la contraseña"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                      {errors.adminConfirmPassword && <p className="text-red-600 text-sm mt-1">{errors.adminConfirmPassword}</p>}
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        setShowCreateAdminModal(false)
+                        setShowPassword(false)
+                        setShowConfirmPassword(false)
+                      }}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleCreateAdmin}
+                      disabled={isLoading}
+                      className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
+                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {isLoading ? "Creando..." : "Crear Administrador"}
+                    </button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Modales para categorías y productos (se mantienen igual) */}
+            {/* Resto de modales (categorías y productos) se mantienen igual */}
             {showEditCategoryModal && editCategory && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">

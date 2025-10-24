@@ -15,7 +15,7 @@ import { useCart } from "./context/CartContext"
 import { useAuth } from "./context/AuthContext"
 
 interface Review {
-  id: number
+  id_review: number  // Cambiado de 'id' a 'id_review'
   userName: string
   rating: number
   text: string
@@ -27,7 +27,7 @@ function App() {
   const { products } = useStore()
   const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
-  const [reviews, setReviews] = useState<{ [productId: string]: Review[] }>({})
+  const [reviews, setReviews] = useState<{ [productId: number]: Review[] }>({})
   const [loadingReviews, setLoadingReviews] = useState(false)
   const [submittingReview, setSubmittingReview] = useState(false)
   const [newReview, setNewReview] = useState({ rating: 0, text: "" })
@@ -72,7 +72,7 @@ function App() {
     }
   }, [selectedProduct])
 
-  const fetchReviews = async (productId: string | number) => {
+  const fetchReviews = async (productId: number) => {
     if (!productId) return
     setLoadingReviews(true)
     try {
@@ -81,7 +81,7 @@ function App() {
         throw new Error(`Error ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
-      setReviews(prev => ({ ...prev, [productId.toString()]: data.reviews || [] }))
+      setReviews(prev => ({ ...prev, [productId]: data.reviews || [] }))
     } catch (error) {
       console.error("Error fetching reviews:", error)
       setReviewError("Error al cargar reseñas")
@@ -95,63 +95,69 @@ function App() {
     setActiveTab("descripcion")
   }
 
-  // En la función handleSubmitReview, cambia esta parte:
-const handleSubmitReview = async (productId: string | number) => {
-  if (!user) {
-    setAuthModal({ type: "login", isOpen: true })
-    return
-  }
-  if (newReview.rating < 1 || newReview.rating > 5) {
-    setReviewError("Por favor selecciona una calificación entre 1 y 5 estrellas")
-    return
-  }
-  if (!user.token) {
-    setReviewError("Sesión expirada. Inicia sesión nuevamente.")
-    setAuthModal({ type: "login", isOpen: true })
-    return
-  }
-  
-  setSubmittingReview(true)
-  setReviewError("")
-  
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/reviews/${productId}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${user.token}`
-      },
-      body: JSON.stringify({
-        rating: newReview.rating,
-        text: newReview.text.trim() || "Sin comentario"
-      })
-    })
-    
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.mensaje || `Error ${response.status}: ${response.statusText}`)
-    }
-    
-    const result = await response.json()
-    setNewReview({ rating: 0, text: "" })
-    await fetchReviews(productId) // Refetch para mostrar la nueva
-    
-    // ÉXITO - No mostrar modal de bienvenida
-    console.log("Reseña enviada exitosamente:", result)
-    
-  } catch (error: any) {
-    console.error("Error submitting review:", error)
-    setReviewError(error.message || "Error al enviar reseña")
-  } finally {
-    setSubmittingReview(false)
-  }
-}
-
-  const handleToggleLike = async (productId: string | number, reviewId: number) => {
-    if (!user || user.isAdmin || !user.token) {
-      if (!user?.token) setAuthModal({ type: "login", isOpen: true })
+  const handleSubmitReview = async (productId: number) => {
+    if (!user) {
+      setAuthModal({ type: "login", isOpen: true })
       return
     }
+    if (newReview.rating < 1 || newReview.rating > 5) {
+      setReviewError("Por favor selecciona una calificación entre 1 y 5 estrellas")
+      return
+    }
+    if (!user.token) {
+      setReviewError("Sesión expirada. Inicia sesión nuevamente.")
+      setAuthModal({ type: "login", isOpen: true })
+      return
+    }
+    
+    setSubmittingReview(true)
+    setReviewError("")
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reviews/${productId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${user.token}`
+        },
+        body: JSON.stringify({
+          rating: newReview.rating,
+          text: newReview.text.trim() || "Sin comentario"
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.mensaje || `Error ${response.status}: ${response.statusText}`)
+      }
+      
+      const result = await response.json()
+      setNewReview({ rating: 0, text: "" })
+      await fetchReviews(productId)
+      
+      console.log("Reseña enviada exitosamente:", result)
+      
+    } catch (error: any) {
+      console.error("Error submitting review:", error)
+      setReviewError(error.message || "Error al enviar reseña")
+    } finally {
+      setSubmittingReview(false)
+    }
+  }
+
+  const handleToggleLike = async (productId: number, reviewId: number) => {
+    if (!user || !user.token) {
+      setAuthModal({ type: "login", isOpen: true })
+      return
+    }
+    
+    // Verificar que el reviewId sea válido
+    if (!reviewId || isNaN(reviewId)) {
+      console.error("ID de reseña inválido:", reviewId)
+      setReviewError("ID de reseña inválido")
+      return
+    }
+    
     try {
       const response = await fetch(`${API_BASE_URL}/api/reviews/${productId}/${reviewId}/like`, {
         method: "PUT",
@@ -160,19 +166,22 @@ const handleSubmitReview = async (productId: string | number) => {
           "Authorization": `Bearer ${user.token}`
         }
       })
+      
       if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`)
+        const errorData = await response.json()
+        throw new Error(errorData.mensaje || `Error ${response.status}: ${response.statusText}`)
       }
-      await response.json()
-      fetchReviews(productId)
+      
+      await fetchReviews(productId)
     } catch (error: any) {
       console.error("Error toggling like:", error)
+      setReviewError(error.message || "Error al dar like")
     }
   }
 
   // Función para verificar si el usuario actual dio like a una reseña
   const hasUserLiked = (review: Review) => {
-    return user && review.likedBy.includes(user.id)
+    return user && review.likedBy.includes(user.id.toString())
   }
 
   const filteredProducts = useMemo(() => {
@@ -355,7 +364,7 @@ const handleSubmitReview = async (productId: string | number) => {
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Productos</h2>
             {productRows.map((row, rowIndex) => (
-              <div key={rowIndex} className="mb-8">
+              <div key={`row-${rowIndex}`} className="mb-8">
                 {rowIndex === 0 ? (
                   <ProductsCarousel
                     products={row}
@@ -365,7 +374,7 @@ const handleSubmitReview = async (productId: string | number) => {
                   <div className={`grid gap-6 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5" : "grid-cols-1"}`}>
                     {row.map((product) => (
                       <div
-                        key={product.id}
+                        key={`product-${product.id}`}
                         className="bg-white dark:bg-gray-700 rounded-xl cursor-pointer transition-all duration-300 transform hover:scale-105 border border-gray-200 dark:border-gray-600 overflow-hidden relative group hover:shadow-[0_0_15px_rgba(255,0,0,0.5)]"
                       >
                         <div className="relative overflow-hidden">
@@ -419,7 +428,7 @@ const handleSubmitReview = async (productId: string | number) => {
                           <div className="flex items-center gap-1">
                             {[...Array(5)].map((_, i) => (
                               <span
-                                key={i}
+                                key={`star-${product.id}-${i}`}
                                 className={`text-base ${i < Math.floor(product.rating) ? "text-yellow-400" : "text-gray-300 dark:text-gray-600"}`}
                               >
                                 ★
@@ -464,15 +473,15 @@ const handleSubmitReview = async (productId: string | number) => {
                 )}
               </div>
             ))}
-          </div>
 
-          {filteredProducts.length === 0 && (
-            <div className="text-center py-16">
-              <div className="text-gray-400 text-6xl mb-4">🔍</div>
-              <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">No se encontraron productos</h3>
-              <p className="text-gray-500 dark:text-gray-400">Intenta ajustar tus filtros de búsqueda</p>
-            </div>
-          )}
+            {filteredProducts.length === 0 && (
+              <div className="text-center py-16">
+                <div className="text-gray-400 text-6xl mb-4">🔍</div>
+                <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">No se encontraron productos</h3>
+                <p className="text-gray-500 dark:text-gray-400">Intenta ajustar tus filtros de búsqueda</p>
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
@@ -526,7 +535,7 @@ const handleSubmitReview = async (productId: string | number) => {
                     <div className="flex items-center gap-1">
                       {[...Array(5)].map((_, i) => (
                         <span
-                          key={i}
+                          key={`detail-star-${i}`}
                           className={`text-2xl ${i < Math.floor(selectedProduct.rating) ? "text-yellow-400" : "text-gray-300 dark:text-gray-600"}`}
                         >
                           ★
@@ -672,7 +681,9 @@ const handleSubmitReview = async (productId: string | number) => {
                             ? selectedProduct.characteristics
                                 .split('\n')
                                 .filter((char: string) => char.trim())
-                                .map((char: string, i: number) => <p key={i}>{char}</p>)
+                                .map((char: string, i: number) => (
+                                  <p key={`char-${i}`}>{char}</p>
+                                ))
                             : <p>No hay características disponibles.</p>}
                         </div>
                       </div>
@@ -691,7 +702,7 @@ const handleSubmitReview = async (productId: string | number) => {
                               <div className="flex items-center gap-1">
                                 {[...Array(5)].map((_, i) => (
                                   <button
-                                    key={i}
+                                    key={`rating-star-${i}`}
                                     onClick={() => setNewReview({ ...newReview, rating: i + 1 })}
                                     className={`text-2xl ${
                                       i < newReview.rating ? "text-yellow-400" : "text-gray-300 dark:text-gray-600"
@@ -723,15 +734,15 @@ const handleSubmitReview = async (productId: string | number) => {
                           <p className="text-gray-600 dark:text-gray-400">Cargando reseñas...</p>
                         ) : (
                           <div className="space-y-4">
-                            {reviews[selectedProduct.id.toString()]?.length > 0 ? (
-                              reviews[selectedProduct.id.toString()].map((review) => (
-                                <div key={review.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                            {reviews[selectedProduct.id]?.length > 0 ? (
+                              reviews[selectedProduct.id].map((review) => (
+                                <div key={`review-${review.id_review}`} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                                   <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2">
                                       <div className="flex">
                                         {[...Array(5)].map((_, i) => (
                                           <span
-                                            key={i}
+                                            key={`review-star-${review.id_review}-${i}`}
                                             className={`text-yellow-400 ${i >= review.rating ? "text-gray-300 dark:text-gray-600" : ""}`}
                                           >
                                             ★
@@ -742,19 +753,17 @@ const handleSubmitReview = async (productId: string | number) => {
                                         {review.userName}
                                       </span>
                                     </div>
-                                    {!user?.isAdmin && (
-                                      <button
-                                        onClick={() => handleToggleLike(selectedProduct.id, review.id)}
-                                        className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                                      >
-                                        <Heart
-                                          className={`w-5 h-5 ${
-                                            hasUserLiked(review) ? "fill-red-600 text-red-600" : ""
-                                          }`}
-                                        />
-                                        <span>{review.likes}</span>
-                                      </button>
-                                    )}
+                                    <button
+                                      onClick={() => handleToggleLike(selectedProduct.id, review.id_review)}
+                                      className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                    >
+                                      <Heart
+                                        className={`w-5 h-5 ${
+                                          hasUserLiked(review) ? "fill-red-600 text-red-600" : ""
+                                        }`}
+                                      />
+                                      <span>{review.likes}</span>
+                                    </button>
                                   </div>
                                   <p className="text-gray-700 dark:text-gray-300">{review.text}</p>
                                 </div>
@@ -777,7 +786,7 @@ const handleSubmitReview = async (productId: string | number) => {
                       .slice(0, 3)
                       .map((product) => (
                         <div
-                          key={product.id}
+                          key={`related-${product.id}`}
                           onClick={() => setSelectedProduct(product)}
                           className="bg-white dark:bg-gray-700 rounded-xl cursor-pointer hover:shadow-xl transition-all border border-gray-200 dark:border-gray-600 overflow-hidden group"
                         >
