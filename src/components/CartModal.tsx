@@ -5,7 +5,7 @@ import { X, Plus, Minus, Trash2, ShoppingBag, Heart } from "lucide-react"
 import { useCart } from "../context/CartContext"
 import { useAuth } from "../context/AuthContext"
 import { CheckoutModal } from "./CheckoutModal"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface CartModalProps {
   isOpen: boolean
@@ -18,6 +18,14 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth()
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<"cart" | "favorites">("cart")
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Cerrar modal cuando se abre checkout
+  useEffect(() => {
+    if (isCheckoutOpen) {
+      onClose()
+    }
+  }, [isCheckoutOpen, onClose])
 
   if (!isOpen) return null
 
@@ -34,6 +42,55 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
     }
 
     setIsCheckoutOpen(true)
+  }
+
+  const handleQuantityChange = async (productId: string, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      await removeFromCart(productId)
+      return
+    }
+    
+    setIsLoading(true)
+    try {
+      await updateQuantity(productId, newQuantity)
+    } catch (error) {
+      console.error("Error updating quantity:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleRemoveFromCart = async (productId: string) => {
+    setIsLoading(true)
+    try {
+      await removeFromCart(productId)
+    } catch (error) {
+      console.error("Error removing from cart:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleAddToCart = async (product: any) => {
+    setIsLoading(true)
+    try {
+      await addToCart(product)
+    } catch (error) {
+      console.error("Error adding to cart:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleClearCart = async () => {
+    setIsLoading(true)
+    try {
+      await clearCart()
+    } catch (error) {
+      console.error("Error clearing cart:", error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -76,10 +133,20 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
             <button
               onClick={onClose}
               className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              disabled={isLoading}
             >
               <X className="h-5 w-5" />
             </button>
           </div>
+
+          {/* Loading Overlay */}
+          {isLoading && (
+            <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 z-10 flex items-center justify-center">
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+                <p className="text-gray-600 dark:text-gray-300">Procesando...</p>
+              </div>
+            </div>
+          )}
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
@@ -116,13 +183,17 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           Subtotal: S/. {(item.price * item.quantity).toLocaleString()}
                         </p>
+                        {!item.inStock && (
+                          <p className="text-xs text-red-500 mt-1">Producto no disponible</p>
+                        )}
                       </div>
 
                       <div className="flex flex-col items-end gap-2">
                         <div className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-lg p-1 shadow-inner">
                           <button
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                            className="p-1 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 transition-colors"
+                            onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                            disabled={isLoading}
+                            className="p-1 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 transition-colors disabled:opacity-50"
                           >
                             <Minus className="h-4 w-4" />
                           </button>
@@ -132,16 +203,18 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
                           </span>
 
                           <button
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            className="p-1 rounded-md hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 transition-colors"
+                            onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                            disabled={isLoading || !item.inStock}
+                            className="p-1 rounded-md hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 transition-colors disabled:opacity-50"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
                         </div>
 
                         <button
-                          onClick={() => removeFromCart(item.id)}
-                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          onClick={() => handleRemoveFromCart(item.id)}
+                          disabled={isLoading}
+                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -174,7 +247,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
 
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-900 dark:text-white text-sm truncate">{item.name}</h3>
-                      <p className="text-red-600 dark:text-red-400 font-bold text-lg">${item.price.toLocaleString()}</p>
+                      <p className="text-red-600 dark:text-red-400 font-bold text-lg">S/. {item.price.toLocaleString()}</p>
                       <span
                         className={`text-xs font-medium px-2 py-1 rounded-full inline-block mt-1 ${
                           item.inStock
@@ -189,8 +262,8 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
                     <div className="flex flex-col gap-2">
                       {!user?.isAdmin && (
                         <button
-                          onClick={() => addToCart(item)}
-                          disabled={!item.inStock}
+                          onClick={() => handleAddToCart(item)}
+                          disabled={!item.inStock || isLoading}
                           className="p-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors shadow-md"
                         >
                           <ShoppingBag className="h-4 w-4" />
@@ -198,7 +271,8 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
                       )}
                       <button
                         onClick={() => removeFromFavorites(item.id)}
-                        className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                        disabled={isLoading}
+                        className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors disabled:opacity-50"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -232,17 +306,22 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
               </div>
 
               <button
-                onClick={clearCart}
-                className="text-sm text-red-500 hover:text-red-700 transition-colors w-full text-center py-2"
+                onClick={handleClearCart}
+                disabled={isLoading}
+                className="text-sm text-red-500 hover:text-red-700 transition-colors w-full text-center py-2 disabled:opacity-50"
               >
                 Vaciar carrito
               </button>
 
               <button
                 onClick={handleProceedToCheckout}
-                className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-4 px-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                disabled={isLoading || items.some(item => !item.inStock)}
+                className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 px-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:hover:shadow-lg"
               >
-                Proceder al Pago
+                {items.some(item => !item.inStock) 
+                  ? "Productos no disponibles" 
+                  : "Proceder al Pago"
+                }
               </button>
             </div>
           )}
@@ -250,7 +329,10 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
       </div>
 
       {/* Checkout Modal */}
-      <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} />
+      <CheckoutModal 
+        isOpen={isCheckoutOpen} 
+        onClose={() => setIsCheckoutOpen(false)} 
+      />
     </>
   )
 }

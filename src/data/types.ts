@@ -62,6 +62,7 @@ export interface CartContextType {
   clearCart: () => void;
   getTotalPrice: () => number;
   getTotalItems: () => number;
+  isLoading?: boolean; // NUEVO: Para manejar estados de carga
 }
 
 export interface ThemeContextType {

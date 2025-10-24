@@ -9,7 +9,7 @@ interface User {
   email: string;
   rol: string;
   isAdmin: boolean;
-  token?: string; // AÑADIDO: Token incluido en el user
+  token?: string;
 }
 
 interface AuthContextType {
@@ -29,6 +29,8 @@ axios.defaults.baseURL = API_BASE_URL;
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // Estado para guardar el carrito temporal antes del login
+  const [tempCart, setTempCart] = useState<any[]>([]);
 
   const decodeJWT = (token: string) => {
     try {
@@ -53,6 +55,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Error fetching user profile:", error);
       return null;
     }
+  };
+
+  // Función para migrar carrito temporal a usuario
+  const migrateTempCart = async (cartItems: any[]) => {
+    if (!user || cartItems.length === 0) return;
+
+    try {
+      for (const item of cartItems) {
+        await axios.post("/api/cart", {
+          productoId: item.id_producto || parseInt(item.id),
+          cantidad: item.quantity
+        }, {
+          headers: {
+            Authorization: `Bearer ${user.token}`
+          }
+        });
+      }
+      console.log("Carrito temporal migrado exitosamente");
+      // Limpiar carrito temporal después de migrar
+      setTempCart([]);
+    } catch (error) {
+      console.error("Error migrando carrito temporal:", error);
+    }
+  };
+
+  // Guardar carrito temporal antes del logout o cuando el usuario no esté autenticado
+  const saveTempCart = (cartItems: any[]) => {
+    setTempCart(cartItems);
   };
 
   useEffect(() => {
@@ -102,7 +132,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userProfile = await fetchUserProfile(savedToken);
             if (userProfile) {
               const userData = JSON.parse(savedUser);
-              // AÑADIDO: Incluir el token en el user
               setUser({ ...userData, token: savedToken });
             } else {
               logout();
@@ -147,12 +176,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: userProfile.correo,
         rol,
         isAdmin,
-        token: token // AÑADIDO: Token incluido
+        token: token
       };
       
       setUser(userData);
       localStorage.setItem("sr-robot-user", JSON.stringify(userData));
       localStorage.setItem("sr-robot-token", token);
+      
+      // Migrar carrito temporal si existe
+      if (tempCart.length > 0) {
+        setTimeout(() => {
+          migrateTempCart(tempCart);
+        }, 1000);
+      }
       
       return true;
     } catch (error: any) {
@@ -202,6 +238,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    // Guardar carrito actual como temporal antes de hacer logout
+    if (user) {
+      // Aquí podrías obtener el carrito actual del contexto Cart
+      // Por ahora lo dejamos vacío
+      setTempCart([]);
+    }
+    
     setUser(null);
     localStorage.removeItem("sr-robot-user");
     localStorage.removeItem("sr-robot-token");
