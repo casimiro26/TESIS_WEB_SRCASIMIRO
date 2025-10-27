@@ -20,13 +20,6 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<"cart" | "favorites">("cart")
   const [isLoading, setIsLoading] = useState(false)
 
-  // Cerrar modal cuando se abre checkout
-  useEffect(() => {
-    if (isCheckoutOpen) {
-      onClose()
-    }
-  }, [isCheckoutOpen, onClose])
-
   if (!isOpen) return null
 
   const handleProceedToCheckout = () => {
@@ -41,6 +34,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
       return
     }
 
+    // Abrir directamente el checkout sin cerrar el carrito
     setIsCheckoutOpen(true)
   }
 
@@ -328,7 +322,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
         </div>
       </div>
 
-      {/* Checkout Modal */}
+      {/* Checkout Modal - Se abre inmediatamente al hacer clic en "Proceder al Pago" */}
       <CheckoutModal 
         isOpen={isCheckoutOpen} 
         onClose={() => setIsCheckoutOpen(false)} 

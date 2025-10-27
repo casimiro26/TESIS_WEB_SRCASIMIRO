@@ -98,7 +98,7 @@ interface Admin {
 // Configuración de la API
 const API_BASE_URL = "https://api-web-egdy.onrender.com/api"
 
-// Servicio para administradores
+// Servicio completo para administradores
 const adminService = {
   // Crear nuevo administrador
   crearAdmin: async (token: string, adminData: any) => {
@@ -122,7 +122,7 @@ const adminService = {
   // Obtener lista de administradores
   getAdmins: async (token: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/admins`, {
+      const response = await fetch(`${API_BASE_URL}/superadmin/admins`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -139,6 +139,43 @@ const adminService = {
       console.error("Error fetching admins:", error)
       return { admins: [] }
     }
+  },
+
+  // Actualizar administrador
+  actualizarAdmin: async (token: string, id: number, adminData: any) => {
+    const response = await fetch(`${API_BASE_URL}/superadmin/admins/${id}`, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(adminData)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al actualizar administrador" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  // Eliminar administrador
+  eliminarAdmin: async (token: string, id: number) => {
+    const response = await fetch(`${API_BASE_URL}/superadmin/admins/${id}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ mensaje: "Error al eliminar administrador" }))
+      throw new Error(errorData.mensaje || `Error: ${response.status}`)
+    }
+
+    return response.json()
   }
 }
 
@@ -433,6 +470,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     distribucionCategorias: {} as Record<string, number>
   })
 
+  // Estados nuevos para editar administradores
+  const [showEditAdminModal, setShowEditAdminModal] = useState(false)
+  const [editAdmin, setEditAdmin] = useState<any>(null)
+  const [editAdminData, setEditAdminData] = useState({
+    nombreCompleto: "",
+    correo: "",
+    contrasena: ""
+  })
+  const [showEditPassword, setShowEditPassword] = useState(false)
+
   // Función para obtener el token
   const getToken = (): string => {
     const token = localStorage.getItem("sr-robot-token")
@@ -533,78 +580,161 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   }
 
   const handleCreateAdmin = async () => {
-    // Validaciones
-    const newErrors = {
-      adminName: "",
-      adminEmail: "",
-      adminPassword: "",
-      adminConfirmPassword: ""
-    }
+  // Validaciones
+  const newErrors = {
+    adminName: "",
+    adminEmail: "",
+    adminPassword: "",
+    adminConfirmPassword: ""
+  }
+  
+  let isValid = true
+
+  if (!newAdmin.nombre.trim()) {
+    newErrors.adminName = "El nombre es requerido"
+    isValid = false
+  }
+
+  if (!newAdmin.email.trim()) {
+    newErrors.adminEmail = "El email es requerido"
+    isValid = false
+  } else if (!/\S+@\S+\.\S+/.test(newAdmin.email)) {
+    newErrors.adminEmail = "El email no es válido"
+    isValid = false
+  } else if (!newAdmin.email.endsWith("@srrobot.com")) {
+    newErrors.adminEmail = "El email debe ser corporativo @srrobot.com"
+    isValid = false
+  }
+
+  if (!newAdmin.password) {
+    newErrors.adminPassword = "La contraseña es requerida"
+    isValid = false
+  } else if (newAdmin.password.length < 6) {
+    newErrors.adminPassword = "La contraseña debe tener al menos 6 caracteres"
+    isValid = false
+  }
+
+  if (!newAdmin.confirmPassword) {
+    newErrors.adminConfirmPassword = "Confirma la contraseña"
+    isValid = false
+  } else if (newAdmin.password !== newAdmin.confirmPassword) {
+    newErrors.adminConfirmPassword = "Las contraseñas no coinciden"
+    isValid = false
+  }
+
+  setErrors(prev => ({ ...prev, ...newErrors }))
+  
+  if (!isValid) return
+
+  setIsLoading(true)
+  try {
+    const token = getToken()
     
-    let isValid = true
-
-    if (!newAdmin.nombre.trim()) {
-      newErrors.adminName = "El nombre es requerido"
-      isValid = false
+    // CORRECCIÓN: Usar los nombres de campo que espera el backend
+    const adminData = {
+      nombreCompleto: newAdmin.nombre,  // Cambiado de 'nombre' a 'nombreCompleto'
+      correo: newAdmin.email,           // Cambiado de 'email' a 'correo'
+      contrasena: newAdmin.password     // Cambiado de 'password' a 'contrasena'
     }
 
-    if (!newAdmin.email.trim()) {
-      newErrors.adminEmail = "El email es requerido"
-      isValid = false
-    } else if (!/\S+@\S+\.\S+/.test(newAdmin.email)) {
-      newErrors.adminEmail = "El email no es válido"
-      isValid = false
-    }
-
-    if (!newAdmin.password) {
-      newErrors.adminPassword = "La contraseña es requerida"
-      isValid = false
-    } else if (newAdmin.password.length < 6) {
-      newErrors.adminPassword = "La contraseña debe tener al menos 6 caracteres"
-      isValid = false
-    }
-
-    if (!newAdmin.confirmPassword) {
-      newErrors.adminConfirmPassword = "Confirma la contraseña"
-      isValid = false
-    } else if (newAdmin.password !== newAdmin.confirmPassword) {
-      newErrors.adminConfirmPassword = "Las contraseñas no coinciden"
-      isValid = false
-    }
-
-    setErrors(prev => ({ ...prev, ...newErrors }))
+    await adminService.crearAdmin(token, adminData)
     
-    if (!isValid) return
+    await loadAdmins()
+    setShowCreateAdminModal(false)
+    setNewAdmin({
+      nombre: "",
+      email: "",
+      password: "",
+      confirmPassword: ""
+    })
+    setShowPassword(false)
+    setShowConfirmPassword(false)
+    setToast({ message: "Administrador creado con éxito", type: "success" })
+  } catch (error: any) {
+    console.error("Error creating admin:", error)
+    setToast({ message: error.message || "Error al crear administrador", type: "error" })
+  } finally {
+    setIsLoading(false)
+  }
+}
 
-    setIsLoading(true)
+  // Función para editar administrador
+  const handleEditAdmin = (admin: any) => {
+    setEditAdmin(admin);
+    setEditAdminData({
+      nombreCompleto: admin.nombreCompleto || admin.nombre || "",
+      correo: admin.correo || admin.email || "",
+      contrasena: ""
+    });
+    setShowEditAdminModal(true);
+  };
+
+  // Función para guardar edición de administrador
+  const handleSaveEditAdmin = async () => {
+    if (!editAdminData.nombreCompleto.trim()) {
+      setToast({ message: "El nombre es requerido", type: "error" });
+      return;
+    }
+
+    if (!editAdminData.correo.trim() || !editAdminData.correo.endsWith("@srrobot.com")) {
+      setToast({ message: "El email debe ser corporativo @srrobot.com", type: "error" });
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      const token = getToken()
-      const adminData = {
-        nombre: newAdmin.nombre,
-        email: newAdmin.email,
-        password: newAdmin.password
+      const token = getToken();
+      const adminData: any = {
+        nombreCompleto: editAdminData.nombreCompleto,
+        correo: editAdminData.correo
+      };
+
+      // Solo incluir contraseña si se proporcionó una nueva
+      if (editAdminData.contrasena) {
+        if (editAdminData.contrasena.length < 6) {
+          setToast({ message: "La contraseña debe tener al menos 6 caracteres", type: "error" });
+          setIsLoading(false);
+          return;
+        }
+        adminData.contrasena = editAdminData.contrasena;
       }
 
-      await adminService.crearAdmin(token, adminData)
+      await adminService.actualizarAdmin(token, editAdmin.id_usuario || editAdmin.id, adminData);
       
-      await loadAdmins()
-      setShowCreateAdminModal(false)
-      setNewAdmin({
-        nombre: "",
-        email: "",
-        password: "",
-        confirmPassword: ""
-      })
-      setShowPassword(false)
-      setShowConfirmPassword(false)
-      setToast({ message: "Administrador creado con éxito", type: "success" })
+      await loadAdmins();
+      setShowEditAdminModal(false);
+      setEditAdmin(null);
+      setEditAdminData({ nombreCompleto: "", correo: "", contrasena: "" });
+      setShowEditPassword(false);
+      setToast({ message: "Administrador actualizado con éxito", type: "success" });
     } catch (error: any) {
-      console.error("Error creating admin:", error)
-      setToast({ message: error.message || "Error al crear administrador", type: "error" })
+      console.error("Error updating admin:", error);
+      setToast({ message: error.message || "Error al actualizar administrador", type: "error" });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
+
+  // Función para eliminar administrador
+  const handleDeleteAdmin = async (admin: any) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar al administrador ${admin.nombreCompleto || admin.nombre}?`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const token = getToken();
+      await adminService.eliminarAdmin(token, admin.id_usuario || admin.id);
+      
+      await loadAdmins();
+      setToast({ message: "Administrador eliminado con éxito", type: "success" });
+    } catch (error: any) {
+      console.error("Error deleting admin:", error);
+      setToast({ message: error.message || "Error al eliminar administrador", type: "error" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleCreateCategory = async () => {
     if (!newCategory.nombre.trim()) {
@@ -996,6 +1126,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       setIsLoading(false)
     }
   }
+  
 
   const handleSaveEditProduct = async () => {
     if (!validateForm() || !editProduct) return
@@ -1866,33 +1997,61 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-gray-50 text-gray-900 border-b border-gray-200">
-                            <th className="p-4 font-semibold">ID</th>
+                            <th className="p-4 font-semibold">ID Usuario</th>
                             <th className="p-4 font-semibold">Nombre</th>
                             <th className="p-4 font-semibold">Email</th>
                             <th className="p-4 font-semibold">Rol</th>
                             <th className="p-4 font-semibold">Fecha de Creación</th>
+                            <th className="p-4 font-semibold">Acciones</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {admins.map((admin) => (
-                            <tr key={admin.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                              <td className="p-4 text-gray-900 font-medium">#{admin.id}</td>
+                          {admins.map((admin, index) => (
+                            <tr 
+                              key={admin._id || admin.id || `admin-${index}`} 
+                              className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
+                            >
+                              <td className="p-4 text-gray-900 font-medium">
+                                #{admin.id_usuario || admin.id || 'N/A'}
+                              </td>
                               <td className="p-4 text-gray-900">
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
                                     <Users className="w-5 h-5 text-red-600" />
                                   </div>
-                                  <span>{admin.nombre}</span>
+                                  <span>{admin.nombreCompleto || admin.nombre || 'Sin nombre'}</span>
                                 </div>
                               </td>
-                              <td className="p-4 text-gray-900">{admin.email}</td>
+                              <td className="p-4 text-gray-900">{admin.correo || admin.email || 'Sin email'}</td>
                               <td className="p-4">
                                 <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
-                                  {admin.role}
+                                  {admin.rol || admin.role || 'admin'}
                                 </span>
                               </td>
                               <td className="p-4 text-gray-900">
-                                {new Date(admin.createdAt).toLocaleDateString('es-PE')}
+                                {admin.fecha ? new Date(admin.fecha).toLocaleDateString('es-PE') : 
+                                 admin.createdAt ? new Date(admin.createdAt).toLocaleDateString('es-PE') : 'Fecha no disponible'}
+                              </td>
+                              <td className="p-4">
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleEditAdmin(admin)}
+                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center gap-1"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                    Editar
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteAdmin(admin)}
+                                    disabled={isLoading}
+                                    className={`px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium flex items-center gap-1 ${
+                                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Eliminar
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1941,7 +2100,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         value={newAdmin.email}
                         onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
-                        placeholder="ejemplo@correo.com"
+                        placeholder="ejemplo@srrobot.com"
                       />
                       {errors.adminEmail && <p className="text-red-600 text-sm mt-1">{errors.adminEmail}</p>}
                     </div>
@@ -2008,6 +2167,95 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     >
                       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                       {isLoading ? "Creando..." : "Crear Administrador"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal para editar administrador */}
+            {showEditAdminModal && editAdmin && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-900">Editar Administrador</h3>
+                    <button
+                      onClick={() => {
+                        setShowEditAdminModal(false)
+                        setShowEditPassword(false)
+                      }}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nombre Completo</label>
+                      <input
+                        type="text"
+                        value={editAdminData.nombreCompleto}
+                        onChange={(e) => setEditAdminData({ ...editAdminData, nombreCompleto: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="Ej: Juan Pérez"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={editAdminData.correo}
+                        onChange={(e) => setEditAdminData({ ...editAdminData, correo: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                        placeholder="ejemplo@srrobot.com"
+                      />
+                    </div>
+                    
+                    <div className="relative">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Nueva Contraseña (opcional)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showEditPassword ? "text" : "password"}
+                          value={editAdminData.contrasena}
+                          onChange={(e) => setEditAdminData({ ...editAdminData, contrasena: e.target.value })}
+                          className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                          placeholder="Dejar vacío para mantener la actual"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowEditPassword(!showEditPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          {showEditPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Solo completa este campo si deseas cambiar la contraseña
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        setShowEditAdminModal(false)
+                        setShowEditPassword(false)
+                      }}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveEditAdmin}
+                      disabled={isLoading}
+                      className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
+                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {isLoading ? "Actualizando..." : "Actualizar Administrador"}
                     </button>
                   </div>
                 </div>
