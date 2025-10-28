@@ -5,7 +5,7 @@ import { X, Plus, Minus, Trash2, ShoppingBag, Heart } from "lucide-react"
 import { useCart } from "../context/CartContext"
 import { useAuth } from "../context/AuthContext"
 import { CheckoutModal } from "./CheckoutModal"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 
 interface CartModalProps {
   isOpen: boolean

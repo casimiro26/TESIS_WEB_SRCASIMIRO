@@ -19,9 +19,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Función para hacer requests autenticados
   const authFetch = async (url: string, options: RequestInit = {}) => {
     const token = localStorage.getItem("sr-robot-token")
-    const headers = {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      ...options.headers,
+      ...options.headers as Record<string, string>,
     }
 
     if (token) {
@@ -50,8 +50,177 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Usuario no autenticado: NO cargar carrito persistente
       // Solo mantener en memoria durante la sesión actual
       setItems([])
+      loadTemporaryFavorites()
     }
   }, [user])
+
+  // Cargar favoritos desde backend para usuarios autenticados
+  const loadFavoritesFromBackend = async () => {
+    if (!user) return
+
+    try {
+      setIsLoading(true)
+      const data = await authFetch("/favoritos")
+      
+      // Transformar la respuesta del backend al formato del frontend
+      const transformedFavorites = data.favoritos.map((favorito: any) => ({
+        id: favorito.productoId.toString(),
+        name: favorito.name,
+        category: favorito.category || "",
+        price: favorito.price,
+        image: favorito.image,
+        inStock: favorito.inStock,
+        description: "",
+        rating: 4.5,
+        reviews: 0,
+        featured: false,
+      }))
+      
+      setFavorites(transformedFavorites)
+      
+      // Limpiar favoritos temporales cuando el usuario inicia sesión
+      localStorage.removeItem("sr-robot-temp-favorites")
+      
+    } catch (error) {
+      console.error("Error loading favorites from backend:", error)
+      // En caso de error, cargar favoritos temporales
+      loadTemporaryFavorites()
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Cargar favoritos temporales para usuarios no autenticados
+  const loadTemporaryFavorites = () => {
+    if (user) return // No cargar temporales si el usuario está autenticado
+
+    try {
+      const tempFavorites = localStorage.getItem("sr-robot-temp-favorites")
+      if (tempFavorites) {
+        const parsedFavorites = JSON.parse(tempFavorites)
+        setFavorites(parsedFavorites)
+      }
+    } catch (error) {
+      console.error("Error loading temporary favorites:", error)
+    }
+  }
+
+  // Guardar favoritos temporales en localStorage
+  const saveTemporaryFavorites = (favoritesList: Product[]) => {
+    if (user) return // No guardar temporales si el usuario está autenticado
+    
+    try {
+      localStorage.setItem("sr-robot-temp-favorites", JSON.stringify(favoritesList))
+    } catch (error) {
+      console.error("Error saving temporary favorites:", error)
+    }
+  }
+
+  // Agregar a favoritos en el backend (usuarios autenticados)
+  const addToFavoritesBackend = async (product: Product) => {
+    if (!user) {
+      addToFavoritesTemporal(product)
+      return
+    }
+
+    try {
+      setIsLoading(true)
+      await authFetch("/favoritos", {
+        method: "POST",
+        body: JSON.stringify({
+          productoId: parseInt(product.id)
+        })
+      })
+      
+      // Recargar favoritos desde el backend
+      await loadFavoritesFromBackend()
+      
+    } catch (error) {
+      console.error("Error adding to favorites in backend:", error)
+      // Fallback a favoritos temporales en caso de error
+      addToFavoritesTemporal(product)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Agregar a favoritos temporales (usuarios no autenticados)
+  const addToFavoritesTemporal = (product: Product) => {
+    setFavorites((prev) => {
+      const exists = prev.find((fav) => fav.id === product.id)
+      if (exists) return prev
+      
+      const newFavorites = [...prev, product]
+      saveTemporaryFavorites(newFavorites)
+      return newFavorites
+    })
+  }
+
+  // Eliminar de favoritos en el backend (usuarios autenticados)
+  const removeFromFavoritesBackend = async (productId: string) => {
+    if (!user) {
+      removeFromFavoritesTemporal(productId)
+      return
+    }
+
+    try {
+      setIsLoading(true)
+      await authFetch(`/favoritos/${productId}`, {
+        method: "DELETE"
+      })
+      
+      // Recargar favoritos desde el backend
+      await loadFavoritesFromBackend()
+      
+    } catch (error) {
+      console.error("Error removing from favorites in backend:", error)
+      // Fallback a favoritos temporales en caso de error
+      removeFromFavoritesTemporal(productId)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Eliminar de favoritos temporales (usuarios no autenticados)
+  const removeFromFavoritesTemporal = (productId: string) => {
+    setFavorites((prev) => {
+      const newFavorites = prev.filter((fav) => fav.id !== productId)
+      saveTemporaryFavorites(newFavorites)
+      return newFavorites
+    })
+  }
+
+  // Verificar si un producto está en favoritos
+  const checkIsFavorite = async (productId: string): Promise<boolean> => {
+    if (!user) {
+      // Para usuarios no autenticados, verificar en memoria
+      return favorites.some(fav => fav.id === productId)
+    }
+
+    try {
+      const data = await authFetch(`/favoritos/check/${productId}`)
+      return data.esFavorito
+    } catch (error) {
+      console.error("Error checking favorite status:", error)
+      return favorites.some(fav => fav.id === productId)
+    }
+  }
+
+  // Migrar favoritos temporales a usuario autenticado
+  const migrateGuestFavorites = async (guestFavorites: Product[]) => {
+    if (!user || guestFavorites.length === 0) return
+
+    try {
+      // Agregar cada favorito temporal al backend
+      for (const favorite of guestFavorites) {
+        await addToFavoritesBackend(favorite)
+      }
+      
+      console.log("Favoritos temporales migrados exitosamente al usuario")
+    } catch (error) {
+      console.error("Error migrating guest favorites:", error)
+    }
+  }
 
   // Cargar carrito desde backend
   const loadCartFromBackend = async () => {
@@ -63,20 +232,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Transformar la respuesta del backend al formato que espera tu frontend
       const transformedItems = data.items.map((item: any) => ({
         id: item.productoId.toString(),
-        id_producto: item.productoId,
         name: item.name,
         category: "", // Se puede obtener si está disponible en la API
         price: item.price,
         image: item.image,
         quantity: item.quantity,
         inStock: item.inStock,
-        productCode: item.productCode,
         description: "", // Campos opcionales
-        characteristics: "",
         rating: 4.5,
         reviews: 0,
         featured: false,
-        reviewsList: []
       }))
       setItems(transformedItems)
     } catch (error) {
@@ -84,22 +249,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setItems([]) // En caso de error, vaciar carrito
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  // Cargar favoritos desde backend (si tienes endpoints para favoritos)
-  const loadFavoritesFromBackend = async () => {
-    if (!user) return
-
-    try {
-      // Por ahora mantenemos localStorage para favoritos
-      const savedFavorites = localStorage.getItem("sr-robot-favorites")
-      if (savedFavorites) {
-        const parsedFavorites = JSON.parse(savedFavorites)
-        setFavorites(parsedFavorites)
-      }
-    } catch (error) {
-      console.error("Error loading favorites:", error)
     }
   }
 
@@ -112,19 +261,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       for (const item of guestItems) {
         await addToCartBackend({
           id: item.id,
-          id_producto: parseInt(item.id),
           name: item.name,
           category: item.category || "",
           price: item.price,
           image: item.image,
           inStock: item.inStock,
-          productCode: item.productCode || "",
           description: item.description || "",
-          characteristics: item.characteristics || "",
           rating: item.rating || 4.5,
           reviews: item.reviews || 0,
           featured: item.featured || false,
-          reviewsList: item.reviewsList || []
         }, item.quantity)
       }
       
@@ -147,7 +292,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await authFetch("/cart", {
         method: "POST",
         body: JSON.stringify({
-          productoId: product.id_producto || parseInt(product.id),
+          productoId: parseInt(product.id),
           cantidad: quantity
         })
       })
@@ -321,24 +466,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return clearCartBackend()
   }
 
-  // Funciones para favoritos (mantenemos localStorage por ahora)
+  // Funciones para favoritos (ahora integradas con backend)
   const addToFavorites = (product: Product) => {
-    setFavorites((prev) => {
-      const exists = prev.find((fav) => fav.id === product.id)
-      if (exists) return prev
-      const newFavorites = [...prev, product]
-      // Favoritos sí se guardan en localStorage para todos los usuarios
-      localStorage.setItem("sr-robot-favorites", JSON.stringify(newFavorites))
-      return newFavorites
-    })
+    return addToFavoritesBackend(product)
   }
 
   const removeFromFavorites = (productId: string) => {
-    setFavorites((prev) => {
-      const newFavorites = prev.filter((fav) => fav.id !== productId)
-      localStorage.setItem("sr-robot-favorites", JSON.stringify(newFavorites))
-      return newFavorites
-    })
+    return removeFromFavoritesBackend(productId)
   }
 
   const getTotalPrice = () => {
@@ -360,7 +494,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     clearCart,
     getTotalPrice,
     getTotalItems,
-    isLoading,
   }
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

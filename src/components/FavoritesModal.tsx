@@ -27,7 +27,10 @@ export const FavoritesModal: React.FC<FavoritesModalProps> = ({ isOpen, onClose 
             <Heart className="w-6 h-6 text-red-600 fill-current" />
             <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Mis Favoritos</h2>
-              <p className="text-xs text-gray-600 dark:text-gray-400">{favorites.length} productos guardados</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {favorites.length} {favorites.length === 1 ? 'producto guardado' : 'productos guardados'}
+                {!user && " (temporal)"}
+              </p>
             </div>
           </div>
           <button
@@ -47,8 +50,16 @@ export const FavoritesModal: React.FC<FavoritesModalProps> = ({ isOpen, onClose 
               </div>
               <p className="text-gray-500 dark:text-gray-400 font-medium">No tienes favoritos</p>
               <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-                Guarda productos que te gusten para verlos aquí
+                {user 
+                  ? "Guarda productos que te gusten para verlos aquí" 
+                  : "Inicia sesión para guardar tus favoritos permanentemente"
+                }
               </p>
+              {!user && (
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  Los favoritos temporales se perderán al recargar la página
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -75,6 +86,11 @@ export const FavoritesModal: React.FC<FavoritesModalProps> = ({ isOpen, onClose 
                     >
                       {item.inStock ? "✓ En Stock" : "✗ Agotado"}
                     </span>
+                    {!user && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400 block mt-1">
+                        Temporal
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -101,6 +117,15 @@ export const FavoritesModal: React.FC<FavoritesModalProps> = ({ isOpen, onClose 
             </div>
           )}
         </div>
+
+        {/* Footer con información para usuarios no autenticados */}
+        {!user && favorites.length > 0 && (
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-yellow-50 dark:bg-yellow-900/20">
+            <p className="text-xs text-yellow-700 dark:text-yellow-400 text-center">
+              💡 Inicia sesión para guardar tus favoritos permanentemente
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

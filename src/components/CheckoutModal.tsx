@@ -160,16 +160,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const [stripePaymentId, setStripePaymentId] = useState("")
+  const [cardDetails, setCardDetails] = useState({
+    cardNumber: "",
+    expiryDate: "",
+    cvc: ""
+  })
+  const [finalTotal, setFinalTotal] = useState(0)
+  const [finalSubtotal, setFinalSubtotal] = useState(0)
+  const [finalShipping, setFinalShipping] = useState(0)
+  const [finalItems, setFinalItems] = useState<any[]>([])
   const formRef = useRef<HTMLDivElement>(null)
 
-  // Calcular totales - ESTOS SE ACTUALIZAN AUTOMÁTICAMENTE
+  // Calcular totales
   const subtotal = getTotalPrice()
   const shipping = items.length > 0 ? 15.0 : 0
   const total = subtotal + shipping
 
   const handleClose = () => {
     if (paymentSuccess) {
-      // Cerrar completamente después de pago exitoso
       setFormData({
         fullName: "",
         dni: "",
@@ -179,6 +187,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
         province: "",
         district: "",
         addressDetails: "",
+      })
+      setCardDetails({
+        cardNumber: "",
+        expiryDate: "",
+        cvc: ""
       })
       setCurrentStep(1)
       setCompletedSteps([])
@@ -186,9 +199,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       setIsProcessing(false)
       setPaymentSuccess(false)
       setStripePaymentId("")
+      setFinalTotal(0)
+      setFinalSubtotal(0)
+      setFinalShipping(0)
+      setFinalItems([])
       onClose()
     } else {
-      // Solo resetear si no hay pago exitoso
       setFormData({
         fullName: "",
         dni: "",
@@ -199,10 +215,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
         district: "",
         addressDetails: "",
       })
+      setCardDetails({
+        cardNumber: "",
+        expiryDate: "",
+        cvc: ""
+      })
       setCurrentStep(1)
       setCompletedSteps([])
       setIsConfirmed(false)
       setIsProcessing(false)
+      setFinalTotal(0)
+      setFinalSubtotal(0)
+      setFinalShipping(0)
+      setFinalItems([])
       onClose()
     }
   }
@@ -255,10 +280,58 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     return true
   }
 
+  const validateCardDetails = () => {
+    const cardNumberRegex = /^\d{16}$/
+    const expiryDateRegex = /^(0[1-9]|1[0-2])\/\d{2}$/
+    const cvcRegex = /^\d{3,4}$/
+
+    if (!cardDetails.cardNumber.replace(/\s/g, '').match(cardNumberRegex)) {
+      alert("Por favor ingrese un número de tarjeta válido (16 dígitos)")
+      return false
+    }
+    if (!cardDetails.expiryDate.match(expiryDateRegex)) {
+      alert("Por favor ingrese una fecha de vencimiento válida (MM/AA)")
+      return false
+    }
+    if (!cardDetails.cvc.match(cvcRegex)) {
+      alert("Por favor ingrese un CVC válido (3 o 4 dígitos)")
+      return false
+    }
+    return true
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
+    })
+  }
+
+  const handleCardInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let { name, value } = e.target
+
+    // Formateo automático para número de tarjeta
+    if (name === "cardNumber") {
+      value = value.replace(/\s/g, '').replace(/(\d{4})/g, '$1 ').trim()
+      if (value.length > 19) value = value.slice(0, 19)
+    }
+    // Formateo automático para fecha de vencimiento
+    else if (name === "expiryDate") {
+      value = value.replace(/\D/g, '')
+      if (value.length >= 2) {
+        value = value.slice(0, 2) + '/' + value.slice(2, 4)
+      }
+      if (value.length > 5) value = value.slice(0, 5)
+    }
+    // Solo números para CVC
+    else if (name === "cvc") {
+      value = value.replace(/\D/g, '')
+      if (value.length > 4) value = value.slice(0, 4)
+    }
+
+    setCardDetails({
+      ...cardDetails,
+      [name]: value,
     })
   }
 
@@ -283,105 +356,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     }
   }
 
-  const handleRealStripePayment = async () => {
-    if (!user) {
-      alert("Debes iniciar sesión para confirmar el pedido")
-      return
-    }
-
-    if (items.length === 0) {
-      alert("No hay productos en el carrito")
-      return
-    }
-
-    setIsProcessing(true)
-
-    try {
-      // Convertir a centavos (Stripe requiere montos en centavos)
-      const totalAmount = Math.round(total * 100)
-      
-      console.log("💳 Iniciando pago real con Stripe...")
-      console.log("💰 Monto a pagar:", total, "PEN ->", totalAmount, "centavos")
-
-      // 1. Crear Payment Intent en tu backend
-      const response = await fetch("https://api-web-egdy.onrender.com/api/pagos/crear-intent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("sr-robot-token")}`
-        },
-        body: JSON.stringify({
-          monto: totalAmount // Enviar en centavos
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.mensaje || "Error al crear intent de pago")
-      }
-
-      const paymentData = await response.json()
-      console.log("✅ Payment Intent creado:", paymentData)
-      setStripePaymentId(paymentData.paymentId)
-
-      // 2. Aquí normalmente integrarías Stripe Elements
-      // Por ahora simulamos la confirmación exitosa
-      await new Promise(resolve => setTimeout(resolve, 3000))
-
-      // 3. Confirmar el pago en el backend
-      const confirmResponse = await fetch("https://api-web-egdy.onrender.com/api/pagos/confirmar", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("sr-robot-token")}`
-        },
-        body: JSON.stringify({
-          payment_intent_id: paymentData.paymentId
-        })
-      })
-
-      if (!confirmResponse.ok) {
-        throw new Error("Error al confirmar el pago")
-      }
-
-      const confirmData = await confirmResponse.json()
-      console.log("✅ Pago confirmado:", confirmData)
-
-      // 4. Crear orden local
-      const order = {
-        customer: {
-          name: formData.fullName,
-          email: formData.email,
-          phone: formData.phone,
-          address: fullAddress,
-          dni: formData.dni,
-        },
-        items: items.map((item) => ({
-          product: item,
-          quantity: item.quantity,
-        })),
-        total: total,
-        status: "confirmed" as const,
-        paymentMethod: "stripe" as const,
-        stripePaymentId: paymentData.paymentId
-      }
-
-      addOrder(order)
-      setIsConfirmed(true)
-      setPaymentSuccess(true)
-      setCompletedSteps((prev) => [...prev, 4])
-      clearCart()
-      
-      console.log("🎉 ¡Pago exitoso! Orden creada")
-
-    } catch (error: any) {
-      console.error("❌ Error en el pago:", error)
-      alert(`Error al procesar el pago: ${error.message}`)
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
   const handleStripePayment = async () => {
     if (!user) {
       alert("Debes iniciar sesión para confirmar el pedido")
@@ -393,21 +367,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       return
     }
 
+    if (!validateCardDetails()) {
+      return
+    }
+
     setIsProcessing(true)
-    setCurrentStep(4) // Ir directamente al paso 4 de confirmación
+    setCurrentStep(4)
 
     try {
       console.log("💳 Procesando pago con Stripe...")
       console.log("💰 Monto total:", total, "PEN")
       
+      // Guardar toda la información ANTES de limpiar el carrito
+      setFinalTotal(total)
+      setFinalSubtotal(subtotal)
+      setFinalShipping(shipping)
+      setFinalItems([...items]) // Guardar copia de los items
+      
       // Simular procesamiento de pago
       await new Promise(resolve => setTimeout(resolve, 3000))
       
       // Generar ID de pago simulado
-      const simulatedPaymentId = `sim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const simulatedPaymentId = `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       setStripePaymentId(simulatedPaymentId)
       
-      // Crear orden local (simulación exitosa)
+      // Crear orden local
       const order = {
         customer: {
           name: formData.fullName,
@@ -423,7 +407,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
         total: total,
         status: "confirmed" as const,
         paymentMethod: "stripe" as const,
-        stripePaymentId: simulatedPaymentId
+        stripePaymentId: simulatedPaymentId,
+        cardLast4: cardDetails.cardNumber.slice(-4)
       }
 
       addOrder(order)
@@ -432,14 +417,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       setCompletedSteps([1, 2, 3, 4])
       clearCart()
       
-      console.log("🎉 ¡Pago simulado exitosamente!")
-      console.log("📋 ID de pago simulado:", simulatedPaymentId)
+      console.log("🎉 ¡Pago exitoso!")
+      console.log("📋 ID de pago:", simulatedPaymentId)
+      console.log("💳 Tarjeta terminada en:", cardDetails.cardNumber.slice(-4))
       console.log("💰 Monto pagado:", total, "PEN")
       
     } catch (error) {
       console.error("❌ Error en el pago:", error)
       alert("Error al procesar el pago. Intenta nuevamente.")
-      setCurrentStep(3) // Volver al paso 3 si hay error
+      setCurrentStep(3)
     } finally {
       setIsProcessing(false)
     }
@@ -448,32 +434,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
   const handleDownloadReceipt = () => {
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
-    let y = 15
+    let y = 20
 
     // Logo y título
     doc.setFont("helvetica", "bold")
     doc.setFontSize(20)
-    doc.setTextColor(220, 53, 69) // Rojo Sr. Robot
+    doc.setTextColor(220, 53, 69)
     doc.text("SR. ROBOT", pageWidth / 2, y, { align: "center" })
-    y += 10
+    y += 12
 
     doc.setFontSize(16)
     doc.setTextColor(0, 0, 0)
     doc.text("COMPROBANTE DE PAGO", pageWidth / 2, y, { align: "center" })
-    y += 10
+    y += 15
 
     // Información de pago
     doc.setFontSize(10)
     doc.setTextColor(100, 100, 100)
     doc.text(`ID de Transacción: ${stripePaymentId}`, 20, y)
-    y += 5
+    y += 6
     doc.text(`Fecha: ${new Date().toLocaleString('es-PE')}`, 20, y)
     y += 10
 
     // Separador
     doc.setLineWidth(0.5)
     doc.line(20, y, pageWidth - 20, y)
-    y += 10
+    y += 12
 
     // Información del cliente
     doc.setFont("helvetica", "bold")
@@ -483,6 +469,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     y += 8
 
     doc.setFont("helvetica", "normal")
+    doc.setFontSize(10)
     doc.text(`Nombre: ${formData.fullName}`, 20, y)
     y += 6
     doc.text(`DNI: ${formData.dni}`, 20, y)
@@ -492,66 +479,80 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     doc.text(`Teléfono: ${formData.phone}`, 20, y)
     y += 6
     doc.text(`Dirección: ${fullAddress}`, 20, y, { maxWidth: pageWidth - 40 })
-    y += 10
+    y += 12
 
     // Información del pago
     doc.setFont("helvetica", "bold")
+    doc.setFontSize(12)
     doc.text("DETALLES DEL PAGO", 20, y)
     y += 8
 
     doc.setFont("helvetica", "normal")
-    doc.text(`Método de Pago: Stripe`, 20, y)
+    doc.setFontSize(10)
+    doc.text(`Método de Pago: Stripe (Tarjeta)`, 20, y)
     y += 6
     doc.text(`ID de Pago: ${stripePaymentId}`, 20, y)
-    y += 10
+    y += 6
+    doc.text(`Tarjeta: **** **** **** ${cardDetails.cardNumber.slice(-4)}`, 20, y)
+    y += 12
 
     // Productos
     doc.setFont("helvetica", "bold")
+    doc.setFontSize(12)
     doc.text("PRODUCTOS COMPRADOS", 20, y)
-    y += 8
+    y += 10
 
     doc.setFont("helvetica", "normal")
-    doc.setFontSize(10)
+    doc.setFontSize(9)
     
     // Encabezados de tabla
     doc.setFillColor(240, 240, 240)
     doc.rect(20, y, pageWidth - 40, 8, 'F')
     doc.setFont("helvetica", "bold")
+    doc.setFontSize(9)
     doc.text("Producto", 22, y + 6)
     doc.text("Cant.", 120, y + 6)
-    doc.text("Precio", 150, y + 6)
-    doc.text("Subtotal", 180, y + 6)
+    doc.text("P. Unit.", 140, y + 6)
+    doc.text("Subtotal", 170, y + 6)
     y += 12
 
     doc.setFont("helvetica", "normal")
-    items.forEach((item, index) => {
+    finalItems.forEach((item, index) => {
       if (y > 250) {
         doc.addPage()
         y = 20
       }
       
-      doc.text(`${index + 1}. ${item.name}`, 22, y, { maxWidth: 90 })
+      const productName = `${index + 1}. ${item.name}`
+      // Producto (con salto de línea si es muy largo)
+      const productLines = doc.splitTextToSize(productName, 70)
+      doc.text(productLines, 22, y)
+      
+      // Obtener la altura del texto del producto para alinear las demás columnas
+      const productHeight = productLines.length * 4
+      
       doc.text(`${item.quantity}`, 120, y)
-      doc.text(`S/ ${item.price.toFixed(2)}`, 150, y)
-      doc.text(`S/ ${(item.price * item.quantity).toFixed(2)}`, 180, y)
-      y += 8
+      doc.text(`S/ ${item.price.toFixed(2)}`, 140, y)
+      doc.text(`S/ ${(item.price * item.quantity).toFixed(2)}`, 170, y)
+      
+      y += Math.max(8, productHeight)
     })
 
     // Totales
-    y += 5
-    doc.setFontSize(12)
+    y += 8
+    doc.setFontSize(10)
     doc.setFont("helvetica", "bold")
-    doc.text(`Subtotal: S/ ${subtotal.toFixed(2)}`, 140, y)
+    doc.text(`Subtotal: S/ ${finalSubtotal.toFixed(2)}`, 140, y)
     y += 8
-    doc.text(`Costo de Envío: S/ ${shipping.toFixed(2)}`, 140, y)
+    doc.text(`Costo de Envío: S/ ${finalShipping.toFixed(2)}`, 140, y)
     y += 8
-    doc.setFontSize(14)
+    doc.setFontSize(12)
     doc.setTextColor(220, 53, 69)
-    doc.text(`TOTAL PAGADO: S/ ${total.toFixed(2)} PEN`, 140, y)
-    y += 12
+    doc.text(`TOTAL PAGADO: S/ ${finalTotal.toFixed(2)} PEN`, 140, y)
+    y += 15
 
     // Método de pago destacado
-    doc.setFontSize(12)
+    doc.setFontSize(10)
     doc.setTextColor(0, 0, 0)
     doc.setFont("helvetica", "bold")
     doc.text("MÉTODO DE PAGO:", 20, y)
@@ -559,8 +560,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     doc.setFont("helvetica", "normal")
     doc.text("💳 Stripe - Tarjeta de Crédito/Débito", 20, y)
     y += 6
-    doc.text(`💰 Monto Procesado: S/ ${total.toFixed(2)} PEN`, 20, y)
-    y += 10
+    doc.text(`💰 Monto Procesado: S/ ${finalTotal.toFixed(2)} PEN`, 20, y)
+    y += 12
 
     // Separador final
     doc.setLineWidth(0.3)
@@ -569,14 +570,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
 
     // Mensaje de agradecimiento
     doc.setFont("helvetica", "italic")
-    doc.setFontSize(10)
+    doc.setFontSize(9)
     doc.setTextColor(100, 100, 100)
     doc.text("¡Gracias por tu compra en Sr. Robot!", pageWidth / 2, y, { align: "center" })
     y += 5
     doc.text("Tecnología de vanguardia para ti", pageWidth / 2, y, { align: "center" })
+    y += 10
+
+    // Pie de página
+    doc.setFontSize(7)
+    doc.setTextColor(150, 150, 150)
+    doc.text("Este comprobante es generado automáticamente y no requiere firma.", pageWidth / 2, y, { align: "center" })
+    y += 4
+    doc.text("Para consultas o soporte, contacta a nuestro servicio al cliente.", pageWidth / 2, y, { align: "center" })
 
     // Guardar PDF
-    doc.save(`comprobante_sr_robot_${formData.dni}.pdf`)
+    doc.save(`comprobante_sr_robot_${formData.dni}_${Date.now()}.pdf`)
   }
 
   const handleContinueShopping = () => {
@@ -590,12 +599,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       district: "",
       addressDetails: "",
     })
+    setCardDetails({
+      cardNumber: "",
+      expiryDate: "",
+      cvc: ""
+    })
     setCurrentStep(1)
     setCompletedSteps([])
     setIsConfirmed(false)
     setIsProcessing(false)
     setPaymentSuccess(false)
     setStripePaymentId("")
+    setFinalTotal(0)
+    setFinalSubtotal(0)
+    setFinalShipping(0)
+    setFinalItems([])
     onClose()
   }
 
@@ -852,7 +870,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                   <div className="space-y-6 max-w-2xl mx-auto">
                     <div className="text-center mb-8">
                       <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Método de Pago</h3>
-                      <p className="text-gray-600 dark:text-gray-400">Selecciona cómo quieres pagar</p>
+                      <p className="text-gray-600 dark:text-gray-400">Ingresa los datos de tu tarjeta</p>
                     </div>
 
                     {/* Resumen de compra */}
@@ -895,15 +913,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                       </div>
                     </div>
 
-                    {/* Método de pago - TARJETA MEJORADA */}
+                    {/* Formulario de tarjeta */}
                     <div className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-2 border-purple-200 dark:border-purple-800 rounded-xl p-8 shadow-2xl">
                       <div className="text-center mb-6">
                         <div className="flex items-center justify-center gap-3 mb-4">
                           <CreditCard className="w-8 h-8 text-purple-600" />
-                          <h4 className="text-xl font-bold text-gray-900 dark:text-white">Pago con Stripe</h4>
+                          <h4 className="text-xl font-bold text-gray-900 dark:text-white">Pago con Tarjeta</h4>
                         </div>
                         <p className="text-gray-600 dark:text-gray-400">
-                          Pago seguro procesado por Stripe - Aceptamos todas las tarjetas
+                          Pago seguro procesado por Stripe
                         </p>
                       </div>
 
@@ -915,6 +933,52 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                         </div>
                         <p className="text-3xl font-bold text-green-600 mb-1">S/ {total.toFixed(2)}</p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">PEN - Soles Peruanos</p>
+                      </div>
+
+                      {/* Campos de tarjeta */}
+                      <div className="space-y-4 mb-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Número de Tarjeta *
+                          </label>
+                          <input
+                            type="text"
+                            name="cardNumber"
+                            value={cardDetails.cardNumber}
+                            onChange={handleCardInputChange}
+                            placeholder="1234 5678 9012 3456"
+                            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              Fecha de Vencimiento *
+                            </label>
+                            <input
+                              type="text"
+                              name="expiryDate"
+                              value={cardDetails.expiryDate}
+                              onChange={handleCardInputChange}
+                              placeholder="MM/AA"
+                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              CVC *
+                            </label>
+                            <input
+                              type="text"
+                              name="cvc"
+                              value={cardDetails.cvc}
+                              onChange={handleCardInputChange}
+                              placeholder="123"
+                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       <button
@@ -930,7 +994,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                         ) : (
                           <>
                             <CreditCard className="w-6 h-6" />
-                            Pagar S/ {total.toFixed(2)} con Stripe
+                            Pagar S/ {total.toFixed(2)}
                           </>
                         )}
                       </button>
@@ -1073,12 +1137,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
               <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg mb-4 border border-green-200 dark:border-green-800">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Total pagado:</span>
-                  <span className="text-xl font-bold text-green-600">S/ {total > 0 ? total.toFixed(2) : 100.00}</span>
+                  <span className="text-xl font-bold text-green-600">S/ {finalTotal.toFixed(2)}</span>
                 </div>
                 
                 <div className="grid grid-cols-1 text-xs text-gray-600 dark:text-gray-400">
-                  <p><strong className="text-gray-900 dark:text-white">Método:</strong> Stripe</p>
+                  <p><strong className="text-gray-900 dark:text-white">Método:</strong> Stripe (Tarjeta)</p>
                   <p><strong className="text-gray-900 dark:text-white">ID de Pago:</strong> {stripePaymentId}</p>
+                  <p><strong className="text-gray-900 dark:text-white">Tarjeta:</strong> **** **** **** {cardDetails.cardNumber.slice(-4)}</p>
                   <p><strong className="text-gray-900 dark:text-white">Cliente:</strong> {formData.fullName}</p>
                   <p><strong className="text-gray-900 dark:text-white">Email:</strong> {formData.email}</p>
                   <p><strong className="text-gray-900 dark:text-white">Envío a:</strong> {fullAddress}</p>
