@@ -605,7 +605,7 @@ function App() {
                     <div className="flex flex-col items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
                       <Truck className="w-8 h-8 text-green-600 dark:text-green-400 mb-2" />
                       <span className="text-xs font-semibold text-green-700 dark:text-green-400 text-center">
-                        Envío gratis +S/99
+                        Envío S/. 15
                       </span>
                     </div>
                     <div className="flex flex-col items-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">

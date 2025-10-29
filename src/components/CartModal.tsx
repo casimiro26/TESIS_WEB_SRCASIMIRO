@@ -289,7 +289,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Envío:</span>
-                  <span className="font-semibold text-green-600">Gratis</span>
+                  <span className="font-semibold text-green-600">S/. 15</span>
                 </div>
                 <div className="border-t border-gray-300 dark:border-gray-600 pt-2 flex justify-between items-center">
                   <span className="text-lg font-bold text-gray-900 dark:text-white">Total:</span>

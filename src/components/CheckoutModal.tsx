@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
-import { X, Lock, Shield, Check, Download, CreditCard, ShoppingBag, Receipt } from "lucide-react"
+import { X, Lock, Shield, Check, Download, CreditCard, ShoppingBag, Receipt, Building, Smartphone } from "lucide-react"
 import { useCart } from "../context/CartContext"
 import { useAuth } from "../context/AuthContext"
 import { useStore } from "../context/StoreContext"
@@ -137,6 +137,9 @@ const DISTRICTS: District[] = [
   { id: "150143", name: "Villa María del Triunfo", provinceId: "1501" },
 ]
 
+// Tipos de métodos de pago
+type PaymentMethod = 'tarjeta' | 'bcp' | 'interbank' | 'yape'
+
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
   const { items, getTotalPrice, clearCart } = useCart()
   const { user } = useAuth()
@@ -160,11 +163,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const [stripePaymentId, setStripePaymentId] = useState("")
+  
+  // Datos de tarjeta general
   const [cardDetails, setCardDetails] = useState({
     cardNumber: "",
     expiryDate: "",
     cvc: ""
   })
+  
+  // Datos específicos para BCP
+  const [bcpDetails, setBcpDetails] = useState({
+    cardNumber: "",
+    expiryDate: "",
+    cvc: ""
+  })
+  
+  // Datos específicos para Interbank
+  const [interbankDetails, setInterbankDetails] = useState({
+    cardNumber: "",
+    expiryDate: "",
+    cvc: ""
+  })
+  
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('tarjeta')
   const [finalTotal, setFinalTotal] = useState(0)
   const [finalSubtotal, setFinalSubtotal] = useState(0)
   const [finalShipping, setFinalShipping] = useState(0)
@@ -193,6 +214,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
         expiryDate: "",
         cvc: ""
       })
+      setBcpDetails({
+        cardNumber: "",
+        expiryDate: "",
+        cvc: ""
+      })
+      setInterbankDetails({
+        cardNumber: "",
+        expiryDate: "",
+        cvc: ""
+      })
+      setSelectedPaymentMethod('tarjeta')
       setCurrentStep(1)
       setCompletedSteps([])
       setIsConfirmed(false)
@@ -220,6 +252,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
         expiryDate: "",
         cvc: ""
       })
+      setBcpDetails({
+        cardNumber: "",
+        expiryDate: "",
+        cvc: ""
+      })
+      setInterbankDetails({
+        cardNumber: "",
+        expiryDate: "",
+        cvc: ""
+      })
+      setSelectedPaymentMethod('tarjeta')
       setCurrentStep(1)
       setCompletedSteps([])
       setIsConfirmed(false)
@@ -257,20 +300,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
   ]
 
   const validateStep1 = () => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     const phoneRegex = /^[0-9]{9}$/
     const dniRegex = /^\d{8}$/
 
-    if (!formData.fullName.trim()) {
-      alert("El Nombre Completo es obligatorio.")
-      return false
-    }
     if (!dniRegex.test(formData.dni)) {
       alert("El DNI debe contener exactamente 8 dígitos numéricos.")
-      return false
-    }
-    if (!emailRegex.test(formData.email)) {
-      alert("Por favor, ingrese un correo electrónico válido (ej. usuario@dominio.com).")
       return false
     }
     if (!phoneRegex.test(formData.phone)) {
@@ -285,18 +319,48 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     const expiryDateRegex = /^(0[1-9]|1[0-2])\/\d{2}$/
     const cvcRegex = /^\d{3,4}$/
 
-    if (!cardDetails.cardNumber.replace(/\s/g, '').match(cardNumberRegex)) {
-      alert("Por favor ingrese un número de tarjeta válido (16 dígitos)")
+    let currentDetails: any
+    let methodName: string
+
+    switch (selectedPaymentMethod) {
+      case 'tarjeta':
+        currentDetails = cardDetails
+        methodName = 'Tarjeta'
+        break
+      case 'bcp':
+        currentDetails = bcpDetails
+        methodName = 'BCP'
+        break
+      case 'interbank':
+        // No permitir Interbank
+        alert("Interbank no está disponible temporalmente. Por favor seleccione otro método de pago.")
+        return false
+      default:
+        return true
+    }
+
+    // Validar que la tarjeta empiece con 4 para Tarjeta y BCP
+    if (selectedPaymentMethod === 'tarjeta' || selectedPaymentMethod === 'bcp') {
+      const cleanCardNumber = currentDetails.cardNumber.replace(/\s/g, '')
+      if (!cleanCardNumber.startsWith('4')) {
+        alert("Tarjeta no encontrada o autorizada.")
+        return false
+      }
+    }
+
+    if (!currentDetails.cardNumber.replace(/\s/g, '').match(cardNumberRegex)) {
+      alert(`Por favor ingrese un número de tarjeta ${methodName} válido (16 dígitos)`)
       return false
     }
-    if (!cardDetails.expiryDate.match(expiryDateRegex)) {
-      alert("Por favor ingrese una fecha de vencimiento válida (MM/AA)")
+    if (!currentDetails.expiryDate.match(expiryDateRegex)) {
+      alert(`Por favor ingrese una fecha de vencimiento válida (MM/AA) para ${methodName}`)
       return false
     }
-    if (!cardDetails.cvc.match(cvcRegex)) {
-      alert("Por favor ingrese un CVC válido (3 o 4 dígitos)")
+    if (!currentDetails.cvc.match(cvcRegex)) {
+      alert(`Por favor ingrese un CVC válido (3 o 4 dígitos) para ${methodName}`)
       return false
     }
+
     return true
   }
 
@@ -329,10 +393,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       if (value.length > 4) value = value.slice(0, 4)
     }
 
-    setCardDetails({
-      ...cardDetails,
-      [name]: value,
-    })
+    // Actualizar el estado correspondiente según el método de pago
+    switch (selectedPaymentMethod) {
+      case 'tarjeta':
+        setCardDetails(prev => ({
+          ...prev,
+          [name]: value
+        }))
+        break
+      case 'bcp':
+        setBcpDetails(prev => ({
+          ...prev,
+          [name]: value
+        }))
+        break
+      case 'interbank':
+        setInterbankDetails(prev => ({
+          ...prev,
+          [name]: value
+        }))
+        break
+    }
   }
 
   const handleContinue = () => {
@@ -367,7 +448,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       return
     }
 
-    if (!validateCardDetails()) {
+    // Validar que Interbank no esté seleccionado
+    if (selectedPaymentMethod === 'interbank') {
+      alert("Interbank no está disponible temporalmente. Por favor seleccione otro método de pago.")
+      return
+    }
+
+    // Validar detalles según el método de pago seleccionado
+    if (['tarjeta', 'bcp', 'interbank'].includes(selectedPaymentMethod) && !validateCardDetails()) {
       return
     }
 
@@ -375,15 +463,56 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     setCurrentStep(4)
 
     try {
-      console.log("💳 Procesando pago directamente en MongoDB...")
+      console.log("💳 Procesando pago en API de Render...")
       console.log("💰 Monto total:", total, "PEN")
+      console.log("🔧 Método de pago:", selectedPaymentMethod)
       
-      // Preparar datos para el pago
+      // Obtener detalles según el método de pago
+      let detallesPago = {}
+      let ultimos4Digitos = ""
+      let numeroTarjetaCompleto = "" // ← NUEVO: Para enviar número completo
+
+      switch (selectedPaymentMethod) {
+        case 'tarjeta':
+          ultimos4Digitos = cardDetails.cardNumber.slice(-4)
+          numeroTarjetaCompleto = cardDetails.cardNumber.replace(/\s/g, '') // ← NUEVO
+          detallesPago = {
+            ultimos4Digitos: ultimos4Digitos,
+            tipo: "credito"
+          }
+          break
+        case 'bcp':
+          ultimos4Digitos = bcpDetails.cardNumber.slice(-4)
+          numeroTarjetaCompleto = bcpDetails.cardNumber.replace(/\s/g, '') // ← NUEVO
+          detallesPago = {
+            ultimos4Digitos: ultimos4Digitos,
+            tipo: "credito",
+            banco: "BCP"
+          }
+          break
+        case 'interbank':
+          ultimos4Digitos = interbankDetails.cardNumber.slice(-4)
+          numeroTarjetaCompleto = interbankDetails.cardNumber.replace(/\s/g, '') // ← NUEVO
+          detallesPago = {
+            ultimos4Digitos: ultimos4Digitos,
+            tipo: "credito",
+            banco: "Interbank"
+          }
+          break
+        default:
+          detallesPago = {
+            ultimos4Digitos: "",
+            tipo: selectedPaymentMethod
+          }
+      }
+
+      // Preparar datos para el pago - ACTUALIZADO
       const pagoData = {
         monto: total,
+        metodoPago: selectedPaymentMethod,
         informacionEnvio: {
-          nombreCompleto: formData.fullName,
-          email: formData.email,
+          nombreCompleto: user.name || "Cliente",
+          email: user.email,
           telefono: formData.phone,
           direccion: fullAddress,
           dni: formData.dni
@@ -395,13 +524,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
           cantidad: item.quantity,
           imagen: item.image
         })),
-        detallesTarjeta: {
-          ultimos4Digitos: cardDetails.cardNumber.slice(-4),
-          tipo: "credito"
-        }
+        detallesTarjeta: detallesPago,
+        numeroTarjeta: numeroTarjetaCompleto // ← NUEVO: Enviar número completo sin espacios
       }
 
-      // Llamar al nuevo endpoint del backend
+      // Llamar al endpoint de Render
       const response = await fetch("https://api-web-egdy.onrender.com/api/pagos/procesar-pago", {
         method: "POST",
         headers: {
@@ -427,8 +554,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       // Crear orden local
       const order = {
         customer: {
-          name: formData.fullName,
-          email: formData.email,
+          name: user.name || "Cliente",
+          email: user.email,
           phone: formData.phone,
           address: fullAddress,
           dni: formData.dni,
@@ -439,9 +566,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
         })),
         total: total,
         status: "confirmed" as const,
-        paymentMethod: "tarjeta" as const,
+        paymentMethod: selectedPaymentMethod as const,
         ordenId: result.pago.ordenId,
-        cardLast4: cardDetails.cardNumber.slice(-4)
+        cardLast4: ultimos4Digitos
       }
 
       addOrder(order)
@@ -452,7 +579,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       
       console.log("🎉 ¡Pago exitoso!")
       console.log("📋 ID de Orden:", result.pago.ordenId)
-      console.log("💳 Tarjeta terminada en:", cardDetails.cardNumber.slice(-4))
+      console.log("💳 Método de pago:", selectedPaymentMethod)
       console.log("💰 Monto pagado:", total, "PEN")
       
     } catch (error) {
@@ -503,11 +630,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
 
     doc.setFont("helvetica", "normal")
     doc.setFontSize(10)
-    doc.text(`Nombre: ${formData.fullName}`, 20, y)
+    doc.text(`Nombre: ${user?.name || "Cliente"}`, 20, y)
     y += 6
     doc.text(`DNI: ${formData.dni}`, 20, y)
     y += 6
-    doc.text(`Email: ${formData.email}`, 20, y)
+    doc.text(`Email: ${user?.email}`, 20, y)
     y += 6
     doc.text(`Teléfono: ${formData.phone}`, 20, y)
     y += 6
@@ -522,11 +649,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
 
     doc.setFont("helvetica", "normal")
     doc.setFontSize(10)
-    doc.text(`Método de Pago: Tarjeta de Crédito/Débito`, 20, y)
+    doc.text(`Método de Pago: ${getPaymentMethodDisplayName(selectedPaymentMethod)}`, 20, y)
     y += 6
     doc.text(`ID de Pago: ${stripePaymentId}`, 20, y)
     y += 6
-    doc.text(`Tarjeta: **** **** **** ${cardDetails.cardNumber.slice(-4)}`, 20, y)
+    
+    // Mostrar información específica según el método de pago
+    if (selectedPaymentMethod === 'tarjeta') {
+      doc.text(`Tarjeta: **** **** **** ${cardDetails.cardNumber.slice(-4)}`, 20, y)
+    } else if (selectedPaymentMethod === 'bcp') {
+      doc.text(`Tarjeta BCP: **** **** **** ${bcpDetails.cardNumber.slice(-4)}`, 20, y)
+    } else if (selectedPaymentMethod === 'interbank') {
+      doc.text(`Tarjeta Interbank: **** **** **** ${interbankDetails.cardNumber.slice(-4)}`, 20, y)
+    }
+    
     y += 12
 
     // Productos
@@ -591,7 +727,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     doc.text("MÉTODO DE PAGO:", 20, y)
     y += 7
     doc.setFont("helvetica", "normal")
-    doc.text("💳 Tarjeta de Crédito/Débito", 20, y)
+    doc.text(`💳 ${getPaymentMethodDisplayName(selectedPaymentMethod)}`, 20, y)
     y += 6
     doc.text(`💰 Monto Procesado: S/ ${finalTotal.toFixed(2)} PEN`, 20, y)
     y += 12
@@ -637,6 +773,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       expiryDate: "",
       cvc: ""
     })
+    setBcpDetails({
+      cardNumber: "",
+      expiryDate: "",
+      cvc: ""
+    })
+    setInterbankDetails({
+      cardNumber: "",
+      expiryDate: "",
+      cvc: ""
+    })
+    setSelectedPaymentMethod('tarjeta')
     setCurrentStep(1)
     setCompletedSteps([])
     setIsConfirmed(false)
@@ -651,6 +798,189 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
   }
 
   const fullAddress = `${formData.district}, ${formData.province}, ${formData.region}${formData.addressDetails ? ` - ${formData.addressDetails}` : ""}`
+
+  // Función para obtener nombre display del método de pago
+  const getPaymentMethodDisplayName = (method: PaymentMethod): string => {
+    switch (method) {
+      case 'tarjeta': return 'Tarjeta de Crédito/Débito'
+      case 'bcp': return 'Banco de Crédito del Perú (BCP)'
+      case 'interbank': return 'Interbank'
+      case 'yape': return 'Yape'
+      default: return 'Tarjeta'
+    }
+  }
+
+  // Función para obtener icono del método de pago
+  const getPaymentMethodIcon = (method: PaymentMethod) => {
+    switch (method) {
+      case 'tarjeta': return <CreditCard className="w-5 h-5" />
+      case 'bcp': return <Building className="w-5 h-5" />
+      case 'interbank': return <Building className="w-5 h-5" />
+      case 'yape': return <Smartphone className="w-5 h-5" />
+      default: return <CreditCard className="w-5 h-5" />
+    }
+  }
+
+  // Función para obtener color del método de pago
+  const getPaymentMethodColor = (method: PaymentMethod): string => {
+    switch (method) {
+      case 'tarjeta': return 'from-blue-500 to-purple-600'
+      case 'bcp': return 'from-red-500 to-red-600'
+      case 'interbank': return 'from-green-500 to-green-600'
+      case 'yape': return 'from-purple-500 to-purple-600'
+      default: return 'from-blue-500 to-purple-600'
+    }
+  }
+
+  // Función para obtener los detalles actuales según el método de pago
+  const getCurrentDetails = () => {
+    switch (selectedPaymentMethod) {
+      case 'tarjeta': return cardDetails
+      case 'bcp': return bcpDetails
+      case 'interbank': return interbankDetails
+      default: return cardDetails
+    }
+  }
+
+  // Renderizar campos específicos para cada método de pago
+  const renderPaymentFields = () => {
+    const currentDetails = getCurrentDetails()
+
+    switch (selectedPaymentMethod) {
+      case 'tarjeta':
+        return (
+          <div className="space-y-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+            <h5 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-blue-500" />
+              Información de Tarjeta
+            </h5>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Número de Tarjeta *
+              </label>
+              <input
+                type="text"
+                name="cardNumber"
+                value={currentDetails.cardNumber}
+                onChange={handleCardInputChange}
+                placeholder="4*** **** **** ****"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
+              />
+              <p className="text-xs text-gray-500 mt-1">Solo se aceptan tarjetas que empiezan con el número 4</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Fecha de Vencimiento *
+                </label>
+                <input
+                  type="text"
+                  name="expiryDate"
+                  value={currentDetails.expiryDate}
+                  onChange={handleCardInputChange}
+                  placeholder="MM/AA"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  CVC *
+                </label>
+                <input
+                  type="text"
+                  name="cvc"
+                  value={currentDetails.cvc}
+                  onChange={handleCardInputChange}
+                  placeholder="123"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
+                />
+              </div>
+            </div>
+          </div>
+        )
+
+      case 'bcp':
+        return (
+          <div className="space-y-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+            <h5 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Building className="w-5 h-5 text-red-500" />
+              Información de Tarjeta BCP
+            </h5>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Número de Tarjeta BCP *
+              </label>
+              <input
+                type="text"
+                name="cardNumber"
+                value={currentDetails.cardNumber}
+                onChange={handleCardInputChange}
+                placeholder="4*** **** **** ****"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
+              />
+              <p className="text-xs text-gray-500 mt-1">Solo se aceptan tarjetas BCP que empiezan con el número 4</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Fecha de Vencimiento *
+                </label>
+                <input
+                  type="text"
+                  name="expiryDate"
+                  value={currentDetails.expiryDate}
+                  onChange={handleCardInputChange}
+                  placeholder="MM/AA"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  CVC *
+                </label>
+                <input
+                  type="text"
+                  name="cvc"
+                  value={currentDetails.cvc}
+                  onChange={handleCardInputChange}
+                  placeholder="123"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
+                />
+              </div>
+            </div>
+          </div>
+        )
+
+      case 'interbank':
+        return (
+          <div className="space-y-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 opacity-60">
+            <h5 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Building className="w-5 h-5 text-green-500" />
+              Información de Tarjeta Interbank
+            </h5>
+            
+            <div className="text-center py-8">
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <p className="text-yellow-700 dark:text-yellow-400 font-semibold">
+                  ⚠️ Interbank no disponible
+                </p>
+                <p className="text-yellow-600 dark:text-yellow-500 text-sm mt-2">
+                  Este método de pago no está disponible temporalmente.
+                  Por favor seleccione otra opción de pago.
+                </p>
+              </div>
+            </div>
+          </div>
+        )
+
+      default:
+        return null
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -720,24 +1050,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                 {currentStep === 1 && (
                   <div className="space-y-6 max-w-2xl mx-auto">
                     <div className="text-center mb-8">
-                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Información Personal</h3>
+                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Información de Contacto</h3>
                       <p className="text-gray-600 dark:text-gray-400">Completa tus datos para el envío</p>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Nombre Completo *
-                        </label>
-                        <input
-                          type="text"
-                          name="fullName"
-                          value={formData.fullName}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
-                          placeholder="Juan Pérez"
-                        />
-                      </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">DNI *</label>
                         <input
@@ -748,17 +1065,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                           className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
                           placeholder="12345678"
                           maxLength={8}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email *</label>
-                        <input
-                          type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
-                          placeholder="usuario@email.com"
                         />
                       </div>
                       <div>
@@ -775,6 +1081,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                           maxLength={9}
                         />
                       </div>
+                    </div>
+
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Check className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                          Información del usuario
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400">
+                        Nombre: <strong>{user?.name || "Cliente"}</strong> | Email: <strong>{user?.email}</strong>
+                      </p>
                     </div>
                     
                     <div className="flex gap-4 pt-4">
@@ -903,7 +1221,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                   <div className="space-y-6 max-w-2xl mx-auto">
                     <div className="text-center mb-8">
                       <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Método de Pago</h3>
-                      <p className="text-gray-600 dark:text-gray-400">Ingresa los datos de tu tarjeta</p>
+                      <p className="text-gray-600 dark:text-gray-400">Selecciona tu forma de pago preferida</p>
                     </div>
 
                     {/* Resumen de compra */}
@@ -940,21 +1258,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-lg">
                       <h4 className="font-semibold text-gray-900 dark:text-white mb-3 text-lg">Envío a:</h4>
                       <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                        <p><strong>Nombre:</strong> {formData.fullName}</p>
+                        <p><strong>Nombre:</strong> {user?.name || "Cliente"}</p>
+                        <p><strong>DNI:</strong> {formData.dni}</p>
+                        <p><strong>Teléfono:</strong> {formData.phone}</p>
                         <p><strong>Dirección:</strong> {fullAddress}</p>
-                        <p><strong>Contacto:</strong> {formData.phone} | {formData.email}</p>
                       </div>
                     </div>
 
-                    {/* Formulario de tarjeta */}
+                    {/* Selección de método de pago */}
                     <div className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-2 border-purple-200 dark:border-purple-800 rounded-xl p-8 shadow-2xl">
                       <div className="text-center mb-6">
                         <div className="flex items-center justify-center gap-3 mb-4">
                           <CreditCard className="w-8 h-8 text-purple-600" />
-                          <h4 className="text-xl font-bold text-gray-900 dark:text-white">Pago con Tarjeta</h4>
+                          <h4 className="text-xl font-bold text-gray-900 dark:text-white">Método de Pago</h4>
                         </div>
                         <p className="text-gray-600 dark:text-gray-400">
-                          Pago seguro procesado directamente
+                          Selecciona tu forma de pago preferida
                         </p>
                       </div>
 
@@ -968,56 +1287,102 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                         <p className="text-sm text-gray-500 dark:text-gray-400">PEN - Soles Peruanos</p>
                       </div>
 
-                      {/* Campos de tarjeta */}
-                      <div className="space-y-4 mb-6">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Número de Tarjeta *
-                          </label>
-                          <input
-                            type="text"
-                            name="cardNumber"
-                            value={cardDetails.cardNumber}
-                            onChange={handleCardInputChange}
-                            placeholder="1234 5678 9012 3456"
-                            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
-                          />
+                      {/* Métodos de pago */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {/* Tarjeta de Crédito/Débito */}
+                        <div
+                          className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                            selectedPaymentMethod === 'tarjeta'
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
+                              : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300'
+                          }`}
+                          onClick={() => setSelectedPaymentMethod('tarjeta')}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white`}>
+                              <CreditCard className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1">
+                              <h5 className="font-semibold text-gray-900 dark:text-white">Tarjeta</h5>
+                              <p className="text-xs text-gray-600 dark:text-gray-400">Crédito/Débito</p>
+                            </div>
+                            {selectedPaymentMethod === 'tarjeta' && (
+                              <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                                <Check className="w-3 h-3 text-white" />
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              Fecha de Vencimiento *
-                            </label>
-                            <input
-                              type="text"
-                              name="expiryDate"
-                              value={cardDetails.expiryDate}
-                              onChange={handleCardInputChange}
-                              placeholder="MM/AA"
-                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
-                            />
+                        {/* BCP */}
+                        <div
+                          className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                            selectedPaymentMethod === 'bcp'
+                              ? 'border-red-500 bg-red-50 dark:bg-red-900/20 shadow-md'
+                              : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-red-300'
+                          }`}
+                          onClick={() => setSelectedPaymentMethod('bcp')}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white`}>
+                              <Building className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1">
+                              <h5 className="font-semibold text-gray-900 dark:text-white">BCP</h5>
+                              <p className="text-xs text-gray-600 dark:text-gray-400">Banco de Crédito</p>
+                            </div>
+                            {selectedPaymentMethod === 'bcp' && (
+                              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                                <Check className="w-3 h-3 text-white" />
+                              </div>
+                            )}
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              CVC *
-                            </label>
-                            <input
-                              type="text"
-                              name="cvc"
-                              value={cardDetails.cvc}
-                              onChange={handleCardInputChange}
-                              placeholder="123"
-                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors duration-200"
-                            />
+                        </div>
+
+                        {/* Interbank - No disponible */}
+                        <div
+                          className="p-4 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-60"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-gradient-to-r from-green-500 to-green-600 text-white">
+                              <Building className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1">
+                              <h5 className="font-semibold text-gray-600 dark:text-gray-400">Interbank</h5>
+                              <p className="text-xs text-gray-500 dark:text-gray-500">No disponible</p>
+                            </div>
+                            <div className="px-2 py-1 bg-gray-300 dark:bg-gray-600 rounded text-xs text-gray-600 dark:text-gray-400">
+                              Próximamente
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Yape - No disponible */}
+                        <div
+                          className="p-4 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-60"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white">
+                              <Smartphone className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1">
+                              <h5 className="font-semibold text-gray-600 dark:text-gray-400">Yape</h5>
+                              <p className="text-xs text-gray-500 dark:text-gray-500">No disponible</p>
+                            </div>
+                            <div className="px-2 py-1 bg-gray-300 dark:bg-gray-600 rounded text-xs text-gray-600 dark:text-gray-400">
+                              Próximamente
+                            </div>
                           </div>
                         </div>
                       </div>
 
+                      {/* Campos específicos para cada método de pago */}
+                      {renderPaymentFields()}
+
                       <button
                         onClick={handleMongoPayment}
                         disabled={isProcessing || total === 0}
-                        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none text-lg"
+                        className={`w-full bg-gradient-to-r ${getPaymentMethodColor(selectedPaymentMethod)} hover:from-opacity-90 hover:to-opacity-90 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none text-lg`}
                       >
                         {isProcessing ? (
                           <>
@@ -1026,8 +1391,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                           </>
                         ) : (
                           <>
-                            <CreditCard className="w-6 h-6" />
-                            Pagar S/ {total.toFixed(2)}
+                            {getPaymentMethodIcon(selectedPaymentMethod)}
+                            Pagar S/ {total.toFixed(2)} con {getPaymentMethodDisplayName(selectedPaymentMethod)}
                           </>
                         )}
                       </button>
@@ -1099,6 +1464,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                         <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                           <p className="text-sm text-blue-700 dark:text-blue-400 text-center">
                             <strong>ID de Transacción:</strong> {stripePaymentId}
+                          </p>
+                          <p className="text-sm text-blue-700 dark:text-blue-400 text-center mt-2">
+                            <strong>Método:</strong> {getPaymentMethodDisplayName(selectedPaymentMethod)}
                           </p>
                         </div>
                       )}
@@ -1173,12 +1541,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                   <span className="text-xl font-bold text-green-600">S/ {finalTotal.toFixed(2)}</span>
                 </div>
                 
-                <div className="grid grid-cols-1 text-xs text-gray-600 dark:text-gray-400">
-                  <p><strong className="text-gray-900 dark:text-white">Método:</strong> Tarjeta</p>
+                <div className="grid grid-col-1 text-xs text-gray-600 dark:text-gray-400">
+                  <p><strong className="text-gray-900 dark:text-white">Método:</strong> {getPaymentMethodDisplayName(selectedPaymentMethod)}</p>
                   <p><strong className="text-gray-900 dark:text-white">ID de Pago:</strong> {stripePaymentId}</p>
-                  <p><strong className="text-gray-900 dark:text-white">Tarjeta:</strong> **** **** **** {cardDetails.cardNumber.slice(-4)}</p>
-                  <p><strong className="text-gray-900 dark:text-white">Cliente:</strong> {formData.fullName}</p>
-                  <p><strong className="text-gray-900 dark:text-white">Email:</strong> {formData.email}</p>
+                  {selectedPaymentMethod === 'tarjeta' && (
+                    <p><strong className="text-gray-900 dark:text-white">Tarjeta:</strong> **** **** **** {cardDetails.cardNumber.slice(-4)}</p>
+                  )}
+                  {selectedPaymentMethod === 'bcp' && (
+                    <p><strong className="text-gray-900 dark:text-white">Tarjeta BCP:</strong> **** **** **** {bcpDetails.cardNumber.slice(-4)}</p>
+                  )}
+                  {selectedPaymentMethod === 'interbank' && (
+                    <p><strong className="text-gray-900 dark:text-white">Tarjeta Interbank:</strong> **** **** **** {interbankDetails.cardNumber.slice(-4)}</p>
+                  )}
+                  <p><strong className="text-gray-900 dark:text-white">Cliente:</strong> {user?.name || "Cliente"}</p>
+                  <p><strong className="text-gray-900 dark:text-white">DNI:</strong> {formData.dni}</p>
+                  <p><strong className="text-gray-900 dark:text-white">Teléfono:</strong> {formData.phone}</p>
                   <p><strong className="text-gray-900 dark:text-white">Envío a:</strong> {fullAddress}</p>
                 </div>
               </div>

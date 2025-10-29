@@ -42,6 +42,15 @@ export const Header: React.FC<HeaderProps> = ({
   const [showOrdersModal, setShowOrdersModal] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [loadingCategories, setLoadingCategories] = useState(true)
+  const [currentSlide, setCurrentSlide] = useState(0)
+
+  // Textos para el carrusel
+  const slides = [
+    "Sr. Robot tu tienda de confianza donde encontrar accesorios tecnológicos de primer nivel",
+    "Ven y visitanos nos encontramos en el clima del mundo Huánuco",
+    "Tecnología de vanguardia al alcance de todos",
+    "Los mejores precios y calidad garantizada"
+  ]
 
   // Cargar categorías desde la API
   useEffect(() => {
@@ -70,6 +79,15 @@ export const Header: React.FC<HeaderProps> = ({
     loadCategories()
   }, [])
 
+  // Efecto para el carrusel automático
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length)
+    }, 4000) // Cambia cada 4 segundos
+
+    return () => clearInterval(interval)
+  }, [slides.length])
+
   // Función para obtener el texto del rol correctamente
   const getRoleText = (user: any) => {
     if (user.rol === "superadmin") return "Super Administrador"
@@ -80,14 +98,35 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 shadow-lg">
-        {/* Top Bar */}
-        <div className="bg-gradient-to-r from-red-700 to-red-500 text-white py-2 px-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-between text-sm">
-            <div className="flex items-center gap-4">
-              <span>🎁 Envío gratis en compras mayores a S/. 500</span>
-            </div>
-            <div className="hidden md:flex items-center gap-4">
-              <span>📞 Soporte: +1 234 567 890</span>
+        {/* Top Bar - Carrusel de Texto */}
+        <div className="bg-gradient-to-r from-red-700 to-red-500 text-white py-2 px-4 overflow-hidden">
+          <div className="max-w-7xl mx-auto">
+            <div className="relative h-6 flex items-center justify-center">
+              <div className="flex-1 text-center">
+                <div
+                  className="flex transition-all duration-1000 ease-in-out transform"
+                  style={{
+                    transform: `translateX(-${currentSlide * 100}%)`,
+                  }}
+                >
+                  {slides.map((slide, index) => (
+                    <div
+                      key={index}
+                      className="flex-shrink-0 w-full text-center px-4"
+                    >
+                      <span
+                        className={`text-sm font-medium inline-block transition-all duration-700 ${
+                          currentSlide === index
+                            ? "opacity-100 transform translate-y-0"
+                            : "opacity-0 transform translate-y-2"
+                        }`}
+                      >
+                        {slide}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>

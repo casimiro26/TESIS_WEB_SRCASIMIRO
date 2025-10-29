@@ -23,9 +23,8 @@ import {
   Tag,
   Plus,
   Edit,
-  Image as ImageIcon,
+  ImageIcon,
   CreditCard,
-  ShoppingCart,
   UserPlus,
   Shield,
 } from "lucide-react"
@@ -39,7 +38,7 @@ import {
   BarElement,
   Tooltip,
   Legend,
-  Filler
+  Filler,
 } from "chart.js"
 import { Line, Doughnut, Bar } from "react-chartjs-2"
 import { useStore } from "../context/StoreContext"
@@ -47,29 +46,14 @@ import { useCart } from "../context/CartContext"
 import type { Product } from "../types"
 import type { Order } from "../context/StoreContext"
 
-ChartJS.register(
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
-  ArcElement, 
-  BarElement, 
-  Tooltip, 
-  Legend,
-  Filler
-)
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, BarElement, Tooltip, Legend, Filler)
 
 interface AdminDashboardProps {
   isOpen: boolean
   onClose: () => void
 }
 
-interface Activity {
-  id: string
-  type: "order" | "product_added" | "payment_confirmed" | "category_added"
-  description: string
-  timestamp: string
-}
+// The 'Activity' interface was already defined. The lint rule indicates a potential redeclaration or an issue if this was meant to be a different 'Activity'. Assuming it's the intended definition for activity logs.
 
 interface Category {
   id_categoria: number
@@ -93,22 +77,26 @@ interface Admin {
   email: string
   role: string
   createdAt: string
+  id_usuario?: number
+  nombreCompleto?: string
+  correo?: string
+  role?: string
 }
 
 // Configuración de la API
 const API_BASE_URL = "https://api-web-egdy.onrender.com/api"
 
-// Servicio completo para administradores
+// Servicio completo para ¿?
 const adminService = {
   // Crear nuevo administrador
   crearAdmin: async (token: string, adminData: any) => {
     const response = await fetch(`${API_BASE_URL}/admin/crear-admin`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(adminData)
+      body: JSON.stringify(adminData),
     })
 
     if (!response.ok) {
@@ -125,9 +113,9 @@ const adminService = {
       const response = await fetch(`${API_BASE_URL}/superadmin/admins`, {
         method: "GET",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       })
 
       if (!response.ok) {
@@ -146,10 +134,10 @@ const adminService = {
     const response = await fetch(`${API_BASE_URL}/superadmin/admins/${id}`, {
       method: "PUT",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(adminData)
+      body: JSON.JSON.stringify(adminData),
     })
 
     if (!response.ok) {
@@ -165,9 +153,9 @@ const adminService = {
     const response = await fetch(`${API_BASE_URL}/superadmin/admins/${id}`, {
       method: "DELETE",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
     })
 
     if (!response.ok) {
@@ -176,7 +164,7 @@ const adminService = {
     }
 
     return response.json()
-  }
+  },
 }
 
 // Servicio para pagos
@@ -187,9 +175,9 @@ const pagoService = {
       const response = await fetch(`${API_BASE_URL}/admin/pagos`, {
         method: "GET",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       })
 
       if (!response.ok) {
@@ -202,7 +190,7 @@ const pagoService = {
       console.error("Error fetching payments:", error)
       return { pagos: [] }
     }
-  }
+  },
 }
 
 // Servicio para estadísticas
@@ -213,9 +201,9 @@ const statsService = {
       const response = await fetch(`${API_BASE_URL}/admin/estadisticas`, {
         method: "GET",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       })
 
       if (!response.ok) {
@@ -226,7 +214,7 @@ const statsService = {
           totalPedidos: 0,
           ingresosTotales: 0,
           ventasMensuales: [0, 0, 0, 0, 0, 0],
-          distribucionCategorias: {}
+          distribucionCategorias: {},
         }
       }
 
@@ -239,10 +227,10 @@ const statsService = {
         totalPedidos: 0,
         ingresosTotales: 0,
         ventasMensuales: [0, 0, 0, 0, 0, 0],
-        distribucionCategorias: {}
+        distribucionCategorias: {},
       }
     }
-  }
+  },
 }
 
 // Servicio para productos
@@ -251,9 +239,9 @@ const productoService = {
     const response = await fetch(`${API_BASE_URL}/productos`, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
     })
 
     if (!response.ok) {
@@ -268,10 +256,10 @@ const productoService = {
     const response = await fetch(`${API_BASE_URL}/productos`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(productoData)
+      body: JSON.stringify(productoData),
     })
 
     if (!response.ok) {
@@ -286,10 +274,10 @@ const productoService = {
     const response = await fetch(`${API_BASE_URL}/productos/${id}`, {
       method: "PUT",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(productoData)
+      body: JSON.stringify(productoData),
     })
 
     if (!response.ok) {
@@ -304,9 +292,9 @@ const productoService = {
     const response = await fetch(`${API_BASE_URL}/productos/${id}`, {
       method: "DELETE",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
     })
 
     if (!response.ok) {
@@ -315,7 +303,7 @@ const productoService = {
     }
 
     return response.json()
-  }
+  },
 }
 
 // Servicio para categorías
@@ -324,9 +312,9 @@ const categoriaService = {
     const response = await fetch(`${API_BASE_URL}/admin/categorias`, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
     })
 
     if (!response.ok) {
@@ -341,10 +329,10 @@ const categoriaService = {
     const response = await fetch(`${API_BASE_URL}/admin/crear-categoria`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(categoriaData)
+      body: JSON.stringify(categoriaData),
     })
 
     if (!response.ok) {
@@ -359,10 +347,10 @@ const categoriaService = {
     const response = await fetch(`${API_BASE_URL}/admin/categorias/${id}`, {
       method: "PUT",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(categoriaData)
+      body: JSON.stringify(categoriaData),
     })
 
     if (!response.ok) {
@@ -377,9 +365,9 @@ const categoriaService = {
     const response = await fetch(`${API_BASE_URL}/admin/categorias/${id}`, {
       method: "DELETE",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
     })
 
     if (!response.ok) {
@@ -388,17 +376,12 @@ const categoriaService = {
     }
 
     return response.json()
-  }
+  },
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onClose }) => {
-  const { 
-    orders, 
-    confirmReceipt, 
-    error: storeError,
-    clearError
-  } = useStore()
-  
+  const { orders, confirmReceipt, error: storeError, clearError } = useStore()
+
   useCart()
 
   const [activeTab, setActiveTab] = useState("overview")
@@ -424,13 +407,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   })
   const [newCategory, setNewCategory] = useState({
     nombre: "",
-    descripcion: ""
+    descripcion: "",
   })
   const [newAdmin, setNewAdmin] = useState({
     nombre: "",
     email: "",
     password: "",
-    confirmPassword: ""
+    confirmPassword: "",
   })
   const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [editCategory, setEditCategory] = useState<Category | null>(null)
@@ -451,7 +434,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     adminName: "",
     adminEmail: "",
     adminPassword: "",
-    adminConfirmPassword: ""
+    adminConfirmPassword: "",
   })
   const [isLoading, setIsLoading] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
@@ -467,7 +450,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     totalPedidos: 0,
     ingresosTotales: 0,
     ventasMensuales: [0, 0, 0, 0, 0, 0],
-    distribucionCategorias: {} as Record<string, number>
+    distribucionCategorias: {} as Record<string, number>,
   })
 
   // Estados nuevos para editar administradores
@@ -476,7 +459,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [editAdminData, setEditAdminData] = useState({
     nombreCompleto: "",
     correo: "",
-    contrasena: ""
+    contrasena: "",
   })
   const [showEditPassword, setShowEditPassword] = useState(false)
 
@@ -503,7 +486,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
         totalPedidos: orders.length,
         ingresosTotales: 0,
         ventasMensuales: [0, 0, 0, 0, 0, 0],
-        distribucionCategorias: calculateCategoryDistribution(products)
+        distribucionCategorias: calculateCategoryDistribution(products),
       })
     }
   }
@@ -569,7 +552,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
         inStock: p.inStock,
         featured: p.featured,
         createdAt: p.createdAt,
-        creadoPor: p.creadoPor
+        creadoPor: p.creadoPor,
       }))
       setProducts(mappedProducts)
     } catch (error: any) {
@@ -580,165 +563,167 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   }
 
   const handleCreateAdmin = async () => {
-  // Validaciones
-  const newErrors = {
-    adminName: "",
-    adminEmail: "",
-    adminPassword: "",
-    adminConfirmPassword: ""
-  }
-  
-  let isValid = true
-
-  if (!newAdmin.nombre.trim()) {
-    newErrors.adminName = "El nombre es requerido"
-    isValid = false
-  }
-
-  if (!newAdmin.email.trim()) {
-    newErrors.adminEmail = "El email es requerido"
-    isValid = false
-  } else if (!/\S+@\S+\.\S+/.test(newAdmin.email)) {
-    newErrors.adminEmail = "El email no es válido"
-    isValid = false
-  } else if (!newAdmin.email.endsWith("@srrobot.com")) {
-    newErrors.adminEmail = "El email debe ser corporativo @srrobot.com"
-    isValid = false
-  }
-
-  if (!newAdmin.password) {
-    newErrors.adminPassword = "La contraseña es requerida"
-    isValid = false
-  } else if (newAdmin.password.length < 6) {
-    newErrors.adminPassword = "La contraseña debe tener al menos 6 caracteres"
-    isValid = false
-  }
-
-  if (!newAdmin.confirmPassword) {
-    newErrors.adminConfirmPassword = "Confirma la contraseña"
-    isValid = false
-  } else if (newAdmin.password !== newAdmin.confirmPassword) {
-    newErrors.adminConfirmPassword = "Las contraseñas no coinciden"
-    isValid = false
-  }
-
-  setErrors(prev => ({ ...prev, ...newErrors }))
-  
-  if (!isValid) return
-
-  setIsLoading(true)
-  try {
-    const token = getToken()
-    
-    // CORRECCIÓN: Usar los nombres de campo que espera el backend
-    const adminData = {
-      nombreCompleto: newAdmin.nombre,  // Cambiado de 'nombre' a 'nombreCompleto'
-      correo: newAdmin.email,           // Cambiado de 'email' a 'correo'
-      contrasena: newAdmin.password     // Cambiado de 'password' a 'contrasena'
+    // Validaciones
+    const newErrors = {
+      adminName: "",
+      adminEmail: "",
+      adminPassword: "",
+      adminConfirmPassword: "",
     }
 
-    await adminService.crearAdmin(token, adminData)
-    
-    await loadAdmins()
-    setShowCreateAdminModal(false)
-    setNewAdmin({
-      nombre: "",
-      email: "",
-      password: "",
-      confirmPassword: ""
-    })
-    setShowPassword(false)
-    setShowConfirmPassword(false)
-    setToast({ message: "Administrador creado con éxito", type: "success" })
-  } catch (error: any) {
-    console.error("Error creating admin:", error)
-    setToast({ message: error.message || "Error al crear administrador", type: "error" })
-  } finally {
-    setIsLoading(false)
+    let isValid = true
+
+    if (!newAdmin.nombre.trim()) {
+      newErrors.adminName = "El nombre es requerido"
+      isValid = false
+    }
+
+    if (!newAdmin.email.trim()) {
+      newErrors.adminEmail = "El email es requerido"
+      isValid = false
+    } else if (!/\S+@\S+\.\S+/.test(newAdmin.email)) {
+      newErrors.adminEmail = "El email no es válido"
+      isValid = false
+    } else if (!newAdmin.email.endsWith("@srrobot.com")) {
+      newErrors.adminEmail = "El email debe ser corporativo @srrobot.com"
+      isValid = false
+    }
+
+    if (!newAdmin.password) {
+      newErrors.adminPassword = "La contraseña es requerida"
+      isValid = false
+    } else if (newAdmin.password.length < 6) {
+      newErrors.adminPassword = "La contraseña debe tener al menos 6 caracteres"
+      isValid = false
+    }
+
+    if (!newAdmin.confirmPassword) {
+      newErrors.adminConfirmPassword = "Confirma la contraseña"
+      isValid = false
+    } else if (newAdmin.password !== newAdmin.confirmPassword) {
+      newErrors.adminConfirmPassword = "Las contraseñas no coinciden"
+      isValid = false
+    }
+
+    setErrors((prev) => ({ ...prev, ...newErrors }))
+
+    if (!isValid) return
+
+    setIsLoading(true)
+    try {
+      const token = getToken()
+
+      // CORRECCIÓN: Usar los nombres de campo que espera el backend
+      const adminData = {
+        nombreCompleto: newAdmin.nombre, // Cambiado de 'nombre' a 'nombreCompleto'
+        correo: newAdmin.email, // Cambiado de 'email' a 'correo'
+        contrasena: newAdmin.password, // Cambiado de 'password' a 'contrasena'
+      }
+
+      await adminService.crearAdmin(token, adminData)
+
+      await loadAdmins()
+      setShowCreateAdminModal(false)
+      setNewAdmin({
+        nombre: "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+      })
+      setShowPassword(false)
+      setShowConfirmPassword(false)
+      setToast({ message: "Administrador creado con éxito", type: "success" })
+    } catch (error: any) {
+      console.error("Error creating admin:", error)
+      setToast({ message: error.message || "Error al crear administrador", type: "error" })
+    } finally {
+      setIsLoading(false)
+    }
   }
-}
 
   // Función para editar administrador
   const handleEditAdmin = (admin: any) => {
-    setEditAdmin(admin);
+    setEditAdmin(admin)
     setEditAdminData({
       nombreCompleto: admin.nombreCompleto || admin.nombre || "",
       correo: admin.correo || admin.email || "",
-      contrasena: ""
-    });
-    setShowEditAdminModal(true);
-  };
+      contrasena: "",
+    })
+    setShowEditAdminModal(true)
+  }
 
   // Función para guardar edición de administrador
   const handleSaveEditAdmin = async () => {
     if (!editAdminData.nombreCompleto.trim()) {
-      setToast({ message: "El nombre es requerido", type: "error" });
-      return;
+      setToast({ message: "El nombre es requerido", type: "error" })
+      return
     }
 
     if (!editAdminData.correo.trim() || !editAdminData.correo.endsWith("@srrobot.com")) {
-      setToast({ message: "El email debe ser corporativo @srrobot.com", type: "error" });
-      return;
+      setToast({ message: "El email debe ser corporativo @srrobot.com", type: "error" })
+      return
     }
 
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      const token = getToken();
+      const token = getToken()
       const adminData: any = {
         nombreCompleto: editAdminData.nombreCompleto,
-        correo: editAdminData.correo
-      };
+        correo: editAdminData.correo,
+      }
 
       // Solo incluir contraseña si se proporcionó una nueva
       if (editAdminData.contrasena) {
         if (editAdminData.contrasena.length < 6) {
-          setToast({ message: "La contraseña debe tener al menos 6 caracteres", type: "error" });
-          setIsLoading(false);
-          return;
+          setToast({ message: "La contraseña debe tener al menos 6 caracteres", type: "error" })
+          setIsLoading(false)
+          return
         }
-        adminData.contrasena = editAdminData.contrasena;
+        adminData.contrasena = editAdminData.contrasena
       }
 
-      await adminService.actualizarAdmin(token, editAdmin.id_usuario || editAdmin.id, adminData);
-      
-      await loadAdmins();
-      setShowEditAdminModal(false);
-      setEditAdmin(null);
-      setEditAdminData({ nombreCompleto: "", correo: "", contrasena: "" });
-      setShowEditPassword(false);
-      setToast({ message: "Administrador actualizado con éxito", type: "success" });
+      await adminService.actualizarAdmin(token, editAdmin.id_usuario || editAdmin.id, adminData)
+
+      await loadAdmins()
+      setShowEditAdminModal(false)
+      setEditAdmin(null)
+      setEditAdminData({ nombreCompleto: "", correo: "", contrasena: "" })
+      setShowEditPassword(false)
+      setToast({ message: "Administrador actualizado con éxito", type: "success" })
     } catch (error: any) {
-      console.error("Error updating admin:", error);
-      setToast({ message: error.message || "Error al actualizar administrador", type: "error" });
+      console.error("Error updating admin:", error)
+      setToast({ message: error.message || "Error al actualizar administrador", type: "error" })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   // Función para eliminar administrador
   const handleDeleteAdmin = async (admin: any) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar al administrador ${admin.nombreCompleto || admin.nombre}?`)) {
-      return;
+    if (
+      !window.confirm(`¿Estás seguro de que deseas eliminar al administrador ${admin.nombreCompleto || admin.nombre}?`)
+    ) {
+      return
     }
 
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      const token = getToken();
-      await adminService.eliminarAdmin(token, admin.id_usuario || admin.id);
-      
-      await loadAdmins();
-      setToast({ message: "Administrador eliminado con éxito", type: "success" });
+      const token = getToken()
+      await adminService.eliminarAdmin(token, admin.id_usuario || admin.id)
+
+      await loadAdmins()
+      setToast({ message: "Administrador eliminado con éxito", type: "success" })
     } catch (error: any) {
-      console.error("Error deleting admin:", error);
-      setToast({ message: error.message || "Error al eliminar administrador", type: "error" });
+      console.error("Error deleting admin:", error)
+      setToast({ message: error.message || "Error al eliminar administrador", type: "error" })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const handleCreateCategory = async () => {
     if (!newCategory.nombre.trim()) {
-      setErrors(prev => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
+      setErrors((prev) => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
       return
     }
 
@@ -747,13 +732,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       const token = getToken()
       await categoriaService.crearCategoria(token, {
         nombre: newCategory.nombre,
-        descripcion: newCategory.descripcion
+        descripcion: newCategory.descripcion,
       })
-      
+
       await loadCategories()
       setShowCategoryModal(false)
       setNewCategory({ nombre: "", descripcion: "" })
-      setErrors(prev => ({ ...prev, categoryName: "" }))
+      setErrors((prev) => ({ ...prev, categoryName: "" }))
       setToast({ message: "Categoría creada con éxito", type: "success" })
     } catch (error: any) {
       console.error("Error creating category:", error)
@@ -765,7 +750,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
 
   const handleEditCategory = async () => {
     if (!editCategory || !editCategory.nombre.trim()) {
-      setErrors(prev => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
+      setErrors((prev) => ({ ...prev, categoryName: "El nombre de la categoría es requerido" }))
       return
     }
 
@@ -774,7 +759,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       const token = getToken()
       await categoriaService.actualizarCategoria(token, editCategory.id_categoria, {
         nombre: editCategory.nombre,
-        descripcion: editCategory.descripcion
+        descripcion: editCategory.descripcion,
       })
 
       await loadCategories()
@@ -831,11 +816,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   // Calcular estadísticas REALES basadas en datos de la API
   const calculateRealStats = () => {
     // Pagos exitosos (solo estos cuentan como ingresos reales)
-    const pagosExitosos = pagos.filter(pago => pago.status === 'succeeded')
+    const pagosExitosos = pagos.filter((pago) => pago.status === "succeeded")
     const ingresosReales = pagosExitosos.reduce((sum, pago) => sum + pago.monto, 0)
 
     // Productos en stock
-    const productosEnStock = products.filter(p => p.inStock).length
+    const productosEnStock = products.filter((p) => p.inStock).length
 
     return {
       activeCustomers: estadisticasReales.totalClientes || 1, // Mínimo 1 (el admin)
@@ -849,7 +834,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
 
   const calculateCategoryDistribution = (products: Product[]): Record<string, number> => {
     const distribution: Record<string, number> = {}
-    products.forEach(product => {
+    products.forEach((product) => {
       distribution[product.category] = (distribution[product.category] || 0) + 1
     })
     return distribution
@@ -872,7 +857,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
 
     // Actividades de pagos exitosos
     pagos
-      .filter(pago => pago.status === 'succeeded')
+      .filter((pago) => pago.status === "succeeded")
       .slice(0, 2)
       .forEach((pago) => {
         activities.push({
@@ -885,7 +870,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
 
     // Actividades de productos agregados recientemente
     products
-      .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())
+      .sort((a, b) => new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime())
       .slice(0, 2)
       .forEach((product) => {
         activities.push({
@@ -896,9 +881,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
         })
       })
 
-    return activities
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 5)
+    return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 5)
   }, [orders, products, pagos])
 
   const activityChartData = useMemo(() => {
@@ -910,12 +893,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       const date = new Date()
       date.setDate(date.getDate() - i)
       labels.push(date.toLocaleDateString("es-PE", { day: "numeric", month: "short" }))
-      
+
       const count = recentActivities.filter((activity) => {
         const activityDate = new Date(activity.timestamp)
         return activityDate.toDateString() === date.toDateString()
       }).length
-      
+
       data.push(count)
     }
 
@@ -948,12 +931,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     )
 
   const filteredOrders = orders
-    .filter(
-      (order) =>
-        order.customer.name.toLowerCase().includes(orderSearchTerm.toLowerCase()) ||
-        order.id.toString().includes(orderSearchTerm.toLowerCase()) ||
-        order.items.some((item) => item.product.name.toLowerCase().includes(orderSearchTerm.toLowerCase())),
-    )
+    .filter((order) => {
+      const customerName = order.customer?.name?.toLowerCase?.() ?? ""
+      const orderIdStr = order.id?.toString?.() ?? ""
+      const searchLower = orderSearchTerm.toLowerCase()
+
+      const matchesCustomer = customerName.includes(searchLower)
+      const matchesId = orderIdStr.includes(searchLower)
+      const matchesProduct =
+        order.items?.some((item) => item.product?.name?.toLowerCase?.()?.includes(searchLower) ?? false) ?? false
+
+      return matchesCustomer || matchesId || matchesProduct
+    })
     .filter(
       (order) =>
         orderFilter === "Todos" ||
@@ -976,7 +965,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       adminName: "",
       adminEmail: "",
       adminPassword: "",
-      adminConfirmPassword: ""
+      adminConfirmPassword: "",
     }
     let isValid = true
 
@@ -988,7 +977,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       newErrors.category = "La categoría es requerida"
       isValid = false
     }
-    if (!newProduct.price || isNaN(Number(newProduct.price)) || Number(newProduct.price) <= 0 || Number(newProduct.price) > 10000000) {
+    if (
+      !newProduct.price ||
+      isNaN(Number(newProduct.price)) ||
+      Number(newProduct.price) <= 0 ||
+      Number(newProduct.price) > 10000000
+    ) {
       newErrors.price = "El precio debe ser un número entero entre 1 y 10,000,000"
       isValid = false
     }
@@ -1047,7 +1041,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       setIsLoading(true)
       try {
         const token = getToken()
-        const idNum = typeof productId === 'string' ? parseInt(productId) : productId
+        const idNum = typeof productId === "string" ? Number.parseInt(productId) : productId
         await productoService.eliminarProducto(token, idNum)
         await loadProducts()
         setToast({ message: "Producto eliminado con éxito", type: "success" })
@@ -1064,9 +1058,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     if (!validateForm()) return
 
     setIsLoading(true)
-    
+
     const discount = newProduct.discount ? Number(newProduct.discount) : undefined
-    const price = Math.round(Number(newProduct.price));
+    const price = Math.round(Number(newProduct.price))
     const originalPrice = discount ? Math.round(price / (1 - discount / 100)) : undefined
 
     const productData = {
@@ -1116,7 +1110,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
         adminName: "",
         adminEmail: "",
         adminPassword: "",
-        adminConfirmPassword: ""
+        adminConfirmPassword: "",
       })
       setToast({ message: "Producto creado con éxito", type: "success" })
     } catch (error: any) {
@@ -1126,15 +1120,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       setIsLoading(false)
     }
   }
-  
 
   const handleSaveEditProduct = async () => {
     if (!validateForm() || !editProduct) return
 
     setIsLoading(true)
-    
+
     const discount = newProduct.discount ? Number(newProduct.discount) : undefined
-    const price = Math.round(Number(newProduct.price));
+    const price = Math.round(Number(newProduct.price))
     const originalPrice = discount ? Math.round(price / (1 - discount / 100)) : undefined
 
     const productData = {
@@ -1152,7 +1145,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
 
     try {
       const token = getToken()
-      const idNum = typeof editProduct.id === 'string' ? parseInt(editProduct.id) : editProduct.id
+      const idNum = typeof editProduct.id === "string" ? Number.parseInt(editProduct.id) : editProduct.id
       await productoService.actualizarProducto(token, idNum, productData)
 
       await loadProducts()
@@ -1183,7 +1176,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
         adminName: "",
         adminEmail: "",
         adminPassword: "",
-        adminConfirmPassword: ""
+        adminConfirmPassword: "",
       })
       setToast({ message: "Producto actualizado con éxito", type: "success" })
     } catch (error: any) {
@@ -1249,7 +1242,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       case "payment_confirmed":
         return <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-600 rounded-full">Pago</span>
       case "category_added":
-        return <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-600 rounded-full">Categoría</span>
+        return (
+          <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-600 rounded-full">Categoría</span>
+        )
       default:
         return <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">Actividad</span>
     }
@@ -1280,7 +1275,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                   loadCategories(),
                   loadPagos(),
                   loadEstadisticasReales(),
-                  loadAdmins()
+                  loadAdmins(),
                 ])
                 setRefreshing(false)
                 setToast({ message: "Datos actualizados", type: "success" })
@@ -1289,7 +1284,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               className="p-2 hover:bg-white/20 rounded-full transition-colors text-white disabled:opacity-50"
               aria-label="Actualizar datos"
             >
-              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} />
             </button>
             <button
               onClick={onClose}
@@ -1340,7 +1335,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     )}
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3">
@@ -1373,7 +1368,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     </div>
                     <p className="text-3xl font-bold text-red-600 mt-2">S/{stats.totalRevenue.toFixed(2)}</p>
                     <p className="text-sm text-gray-500 mt-1">
-                      {pagos.filter(p => p.status === 'succeeded').length} pagos exitosos
+                      {pagos.filter((p) => p.status === "succeeded").length} pagos exitosos
                     </p>
                   </div>
                 </div>
@@ -1429,8 +1424,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                             {
                               data: Object.values(stats.categoryDistribution),
                               backgroundColor: [
-                                "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", 
-                                "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#a855f7"
+                                "#ef4444",
+                                "#3b82f6",
+                                "#10b981",
+                                "#f59e0b",
+                                "#8b5cf6",
+                                "#ec4899",
+                                "#06b6d4",
+                                "#f97316",
+                                "#14b8a6",
+                                "#a855f7",
                               ],
                               borderWidth: 1,
                             },
@@ -1450,8 +1453,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                             className="w-3 h-3 rounded-sm"
                             style={{
                               backgroundColor: [
-                                "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6",
-                                "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#a855f7"
+                                "#ef4444",
+                                "#3b82f6",
+                                "#10b981",
+                                "#f59e0b",
+                                "#8b5cf6",
+                                "#ec4899",
+                                "#06b6d4",
+                                "#f97316",
+                                "#14b8a6",
+                                "#a855f7",
                               ][index % 10],
                             }}
                           ></span>
@@ -1539,7 +1550,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     )}
                   </div>
                 </div>
-                
+
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                   <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
                     <div className="relative w-full sm:w-1/3">
@@ -1568,7 +1579,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       onClick={handleAddProduct}
                       disabled={isLoading}
                       className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
-                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                        isLoading ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                     >
                       <Package className="w-5 h-5" />
@@ -1625,7 +1636,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         </thead>
                         <tbody>
                           {filteredProducts.map((product) => (
-                            <tr key={product.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                            <tr
+                              key={product.id}
+                              className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
+                            >
                               <td className="p-4">
                                 <img
                                   src={product.image || "/placeholder.svg"}
@@ -1634,9 +1648,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                                   loading="lazy"
                                 />
                               </td>
-                              <td className="p-4 text-gray-900 font-medium">
-                                {product.id_producto || product.id}
-                              </td>
+                              <td className="p-4 text-gray-900 font-medium">{product.id_producto || product.id}</td>
                               <td className="p-4 text-gray-900">{product.name}</td>
                               <td className="p-4 text-gray-900">{product.category}</td>
                               <td className="p-4 text-gray-900 font-medium">
@@ -1674,7 +1686,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                                     onClick={() => handleDeleteProduct(product.id)}
                                     disabled={isLoading}
                                     className={`px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium flex items-center gap-1 ${
-                                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                                      isLoading ? "opacity-50 cursor-not-allowed" : ""
                                     }`}
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -1704,22 +1716,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     Nueva Categoría
                   </button>
                 </div>
-                
+
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {categories.map((category) => (
-                      <div key={category.id_categoria} className="bg-gray-50 rounded-lg p-6 border border-gray-200 hover:shadow-md transition-shadow">
+                      <div
+                        key={category.id_categoria}
+                        className="bg-gray-50 rounded-lg p-6 border border-gray-200 hover:shadow-md transition-shadow"
+                      >
                         <div className="flex items-center gap-3 mb-3">
                           <Tag className="w-6 h-6 text-red-600" />
                           <h4 className="text-lg font-semibold text-gray-900">{category.nombre}</h4>
                         </div>
-                        <p className="text-gray-600 text-sm mb-4">
-                          {category.descripcion || "Sin descripción"}
-                        </p>
+                        <p className="text-gray-600 text-sm mb-4">{category.descripcion || "Sin descripción"}</p>
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-gray-500">
-                            ID: {category.id_categoria}
-                          </span>
+                          <span className="text-xs text-gray-500">ID: {category.id_categoria}</span>
                           <div className="flex gap-2">
                             <button
                               onClick={() => {
@@ -1742,12 +1753,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       </div>
                     ))}
                   </div>
-                  
+
                   {categories.length === 0 && (
                     <div className="text-center py-12">
                       <Tag className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                       <p className="text-gray-500 text-lg">No hay categorías registradas</p>
-                      <p className="text-gray-400 text-sm mt-2">Crea tu primera categoría para organizar tus productos</p>
+                      <p className="text-gray-400 text-sm mt-2">
+                        Crea tu primera categoría para organizar tus productos
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1759,7 +1772,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                 <div className="flex justify-between items-center">
                   <h3 className="text-2xl font-bold text-gray-900">Gestión de Pedidos</h3>
                 </div>
-                
+
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                   <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
                     <div className="relative w-full sm:w-1/3">
@@ -1790,7 +1803,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     <div className="text-center py-12">
                       <ShoppingBag className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                       <p className="text-gray-500 text-lg">No hay pedidos registrados</p>
-                      <p className="text-gray-400 text-sm mt-2">Los pedidos aparecerán aquí cuando los clientes realicen compras</p>
+                      <p className="text-gray-400 text-sm mt-2">
+                        Los pedidos aparecerán aquí cuando los clientes realicen compras
+                      </p>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
@@ -1821,13 +1836,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                               <td className="p-4">
                                 <span
                                   className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    order.status === "delivered" 
+                                    order.status === "delivered"
                                       ? "bg-green-100 text-green-800"
                                       : order.status === "shipped"
-                                      ? "bg-blue-100 text-blue-800"
-                                      : order.status === "confirmed"
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : "bg-gray-100 text-gray-800"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : order.status === "confirmed"
+                                          ? "bg-yellow-100 text-yellow-800"
+                                          : "bg-gray-100 text-gray-800"
                                   }`}
                                 >
                                   {order.status === "pending" && "Pendiente"}
@@ -1890,7 +1905,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                 <div className="flex justify-between items-center">
                   <h3 className="text-2xl font-bold text-gray-900">Gestión de Pagos</h3>
                 </div>
-                
+
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                   <div className="mb-6">
                     <h4 className="text-lg font-semibold text-gray-900 mb-4">Resumen de Pagos</h4>
@@ -1898,19 +1913,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                         <p className="text-green-800 font-semibold">Exitosos</p>
                         <p className="text-2xl font-bold text-green-600">
-                          {pagos.filter(p => p.status === 'succeeded').length}
+                          {pagos.filter((p) => p.status === "succeeded").length}
                         </p>
                       </div>
                       <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
                         <p className="text-yellow-800 font-semibold">Pendientes</p>
                         <p className="text-2xl font-bold text-yellow-600">
-                          {pagos.filter(p => p.status === 'pending').length}
+                          {pagos.filter((p) => p.status === "pending").length}
                         </p>
                       </div>
                       <div className="bg-red-50 p-4 rounded-lg border border-red-200">
                         <p className="text-red-800 font-semibold">Fallidos</p>
                         <p className="text-2xl font-bold text-red-600">
-                          {pagos.filter(p => p.status === 'failed').length}
+                          {pagos.filter((p) => p.status === "failed").length}
                         </p>
                       </div>
                     </div>
@@ -1920,7 +1935,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     <div className="text-center py-12">
                       <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                       <p className="text-gray-500 text-lg">No hay pagos registrados</p>
-                      <p className="text-gray-400 text-sm mt-2">Los pagos aparecerán aquí cuando los clientes realicen transacciones</p>
+                      <p className="text-gray-400 text-sm mt-2">
+                        Los pagos aparecerán aquí cuando los clientes realicen transacciones
+                      </p>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
@@ -1936,30 +1953,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         </thead>
                         <tbody>
                           {pagos.map((pago) => (
-                            <tr key={pago.id_pago} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                            <tr
+                              key={pago.id_pago}
+                              className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
+                            >
                               <td className="p-4 text-gray-900 font-medium">#{pago.id_pago}</td>
                               <td className="p-4 text-gray-900 font-medium">S/{pago.monto.toFixed(2)}</td>
                               <td className="p-4">
                                 <span
                                   className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    pago.status === 'succeeded' 
+                                    pago.status === "succeeded"
                                       ? "bg-green-100 text-green-800"
-                                      : pago.status === 'pending'
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : "bg-red-100 text-red-800"
+                                      : pago.status === "pending"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-red-100 text-red-800"
                                   }`}
                                 >
-                                  {pago.status === 'succeeded' && "Exitoso"}
-                                  {pago.status === 'pending' && "Pendiente"}
-                                  {pago.status === 'failed' && "Fallido"}
+                                  {pago.status === "succeeded" && "Exitoso"}
+                                  {pago.status === "pending" && "Pendiente"}
+                                  {pago.status === "failed" && "Fallido"}
                                 </span>
                               </td>
                               <td className="p-4 text-gray-900">
-                                {new Date(pago.createdAt).toLocaleDateString('es-PE')}
+                                {new Date(pago.createdAt).toLocaleDateString("es-PE")}
                               </td>
-                              <td className="p-4 text-gray-900 text-sm font-mono">
-                                {pago.stripePaymentId}
-                              </td>
+                              <td className="p-4 text-gray-900 text-sm font-mono">{pago.stripePaymentId}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1982,7 +2000,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                     Crear Administrador
                   </button>
                 </div>
-                
+
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                   {admins.length === 0 ? (
                     <div className="text-center py-12">
@@ -2007,30 +2025,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         </thead>
                         <tbody>
                           {admins.map((admin, index) => (
-                            <tr 
-                              key={admin._id || admin.id || `admin-${index}`} 
+                            <tr
+                              key={admin._id || admin.id || `admin-${index}`}
                               className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
                             >
                               <td className="p-4 text-gray-900 font-medium">
-                                #{admin.id_usuario || admin.id || 'N/A'}
+                                #{admin.id_usuario || admin.id || "N/A"}
                               </td>
                               <td className="p-4 text-gray-900">
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
                                     <Users className="w-5 h-5 text-red-600" />
                                   </div>
-                                  <span>{admin.nombreCompleto || admin.nombre || 'Sin nombre'}</span>
+                                  <span>{admin.nombreCompleto || admin.nombre || "Sin nombre"}</span>
                                 </div>
                               </td>
-                              <td className="p-4 text-gray-900">{admin.correo || admin.email || 'Sin email'}</td>
+                              <td className="p-4 text-gray-900">{admin.correo || admin.email || "Sin email"}</td>
                               <td className="p-4">
                                 <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
-                                  {admin.rol || admin.role || 'admin'}
+                                  {admin.rol || admin.role || "admin"}
                                 </span>
                               </td>
                               <td className="p-4 text-gray-900">
-                                {admin.fecha ? new Date(admin.fecha).toLocaleDateString('es-PE') : 
-                                 admin.createdAt ? new Date(admin.createdAt).toLocaleDateString('es-PE') : 'Fecha no disponible'}
+                                {admin.fecha
+                                  ? new Date(admin.fecha).toLocaleDateString("es-PE")
+                                  : admin.createdAt
+                                    ? new Date(admin.createdAt).toLocaleDateString("es-PE")
+                                    : "Fecha no disponible"}
                               </td>
                               <td className="p-4">
                                 <div className="flex gap-2">
@@ -2045,7 +2066,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                                     onClick={() => handleDeleteAdmin(admin)}
                                     disabled={isLoading}
                                     className={`px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium flex items-center gap-1 ${
-                                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                                      isLoading ? "opacity-50 cursor-not-allowed" : ""
                                     }`}
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -2092,7 +2113,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.adminName && <p className="text-red-600 text-sm mt-1">{errors.adminName}</p>}
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                       <input
@@ -2104,7 +2125,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.adminEmail && <p className="text-red-600 text-sm mt-1">{errors.adminEmail}</p>}
                     </div>
-                    
+
                     <div className="relative">
                       <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
                       <div className="relative">
@@ -2125,7 +2146,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       </div>
                       {errors.adminPassword && <p className="text-red-600 text-sm mt-1">{errors.adminPassword}</p>}
                     </div>
-                    
+
                     <div className="relative">
                       <label className="block text-sm font-medium text-gray-700 mb-2">Confirmar Contraseña</label>
                       <div className="relative">
@@ -2144,7 +2165,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                           {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
                       </div>
-                      {errors.adminConfirmPassword && <p className="text-red-600 text-sm mt-1">{errors.adminConfirmPassword}</p>}
+                      {errors.adminConfirmPassword && (
+                        <p className="text-red-600 text-sm mt-1">{errors.adminConfirmPassword}</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
@@ -2162,7 +2185,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       onClick={handleCreateAdmin}
                       disabled={isLoading}
                       className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
-                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                        isLoading ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                     >
                       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -2200,7 +2223,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         placeholder="Ej: Juan Pérez"
                       />
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                       <input
@@ -2211,7 +2234,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         placeholder="ejemplo@srrobot.com"
                       />
                     </div>
-                    
+
                     <div className="relative">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Nueva Contraseña (opcional)
@@ -2251,7 +2274,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       onClick={handleSaveEditAdmin}
                       disabled={isLoading}
                       className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
-                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                        isLoading ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                     >
                       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -2262,7 +2285,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
-            {/* Resto de modales (categorías y productos) se mantienen igual */}
+            {/* Modal para editar categoría */}
             {showEditCategoryModal && editCategory && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
@@ -2306,7 +2329,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       onClick={handleEditCategory}
                       disabled={isLoading}
                       className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
-                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                        isLoading ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                     >
                       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -2317,6 +2340,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
+            {/* Modal para agregar producto */}
             {showAddModal && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -2344,7 +2368,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
                       <select
@@ -2361,7 +2385,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       </select>
                       {errors.category && <p className="text-red-600 text-sm mt-1">{errors.category}</p>}
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Precio (S/)</label>
@@ -2388,7 +2412,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         {errors.discount && <p className="text-red-600 text-sm mt-1">{errors.discount}</p>}
                       </div>
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">URL de la Imagen</label>
                       <div className="flex items-center gap-2 mb-2">
@@ -2403,13 +2427,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         placeholder="https://ejemplo.com/imagen.jpg"
                       />
                       {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
-                      
+
                       {imagePreview && (
                         <div className="mt-3">
                           <p className="text-sm font-medium text-gray-700 mb-2">Vista previa:</p>
                           <div className="relative w-32 h-32 border border-gray-300 rounded-lg overflow-hidden">
                             <img
-                              src={imagePreview}
+                              src={imagePreview || "/placeholder.svg"}
                               alt="Vista previa"
                               className="w-full h-full object-cover"
                               onError={(e) => {
@@ -2420,7 +2444,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         </div>
                       )}
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
                       <textarea
@@ -2432,7 +2456,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.description && <p className="text-red-600 text-sm mt-1">{errors.description}</p>}
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Características</label>
                       <textarea
@@ -2444,7 +2468,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.characteristics && <p className="text-red-600 text-sm mt-1">{errors.characteristics}</p>}
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Código de Producto</label>
                       <input
@@ -2456,7 +2480,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.productCode && <p className="text-red-600 text-sm mt-1">{errors.productCode}</p>}
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -2484,7 +2508,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       onClick={handleSaveNewProduct}
                       disabled={isLoading}
                       className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
-                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                        isLoading ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                     >
                       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -2495,6 +2519,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
+            {/* Modal para editar producto */}
             {showEditModal && editProduct && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -2521,7 +2546,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
                       <select
@@ -2538,7 +2563,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       </select>
                       {errors.category && <p className="text-red-600 text-sm mt-1">{errors.category}</p>}
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Precio (S/)</label>
@@ -2564,7 +2589,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         {errors.discount && <p className="text-red-600 text-sm mt-1">{errors.discount}</p>}
                       </div>
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">URL de la Imagen</label>
                       <div className="flex items-center gap-2 mb-2">
@@ -2578,13 +2603,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 transition-all"
                       />
                       {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
-                      
+
                       {imagePreview && (
                         <div className="mt-3">
                           <p className="text-sm font-medium text-gray-700 mb-2">Vista previa:</p>
                           <div className="relative w-32 h-32 border border-gray-300 rounded-lg overflow-hidden">
                             <img
-                              src={imagePreview}
+                              src={imagePreview || "/placeholder.svg"}
                               alt="Vista previa"
                               className="w-full h-full object-cover"
                               onError={(e) => {
@@ -2595,7 +2620,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                         </div>
                       )}
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
                       <textarea
@@ -2606,7 +2631,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.description && <p className="text-red-600 text-sm mt-1">{errors.description}</p>}
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Características</label>
                       <textarea
@@ -2617,7 +2642,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.characteristics && <p className="text-red-600 text-sm mt-1">{errors.characteristics}</p>}
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Código de Producto</label>
                       <input
@@ -2628,7 +2653,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       />
                       {errors.productCode && <p className="text-red-600 text-sm mt-1">{errors.productCode}</p>}
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -2656,7 +2681,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       onClick={handleSaveEditProduct}
                       disabled={isLoading}
                       className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
-                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                        isLoading ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                     >
                       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -2667,6 +2692,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
+            {/* Modal para crear categoría */}
             {showCategoryModal && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
@@ -2713,7 +2739,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                       onClick={handleCreateCategory}
                       disabled={isLoading}
                       className={`px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 ${
-                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                        isLoading ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                     >
                       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -2724,6 +2750,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
               </div>
             )}
 
+            {/* Modal para ver detalles de orden */}
             {showOrderDetails && (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">

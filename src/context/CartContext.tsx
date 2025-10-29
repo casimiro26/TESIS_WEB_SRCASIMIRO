@@ -21,7 +21,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const token = localStorage.getItem("sr-robot-token")
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      ...options.headers as Record<string, string>,
+      ...(options.headers as Record<string, string>),
     }
 
     if (token) {
@@ -61,7 +61,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true)
       const data = await authFetch("/favoritos")
-      
+
       // Transformar la respuesta del backend al formato del frontend
       const transformedFavorites = data.favoritos.map((favorito: any) => ({
         id: favorito.productoId.toString(),
@@ -75,12 +75,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         reviews: 0,
         featured: false,
       }))
-      
+
       setFavorites(transformedFavorites)
-      
+
       // Limpiar favoritos temporales cuando el usuario inicia sesión
       localStorage.removeItem("sr-robot-temp-favorites")
-      
     } catch (error) {
       console.error("Error loading favorites from backend:", error)
       // En caso de error, cargar favoritos temporales
@@ -108,7 +107,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Guardar favoritos temporales en localStorage
   const saveTemporaryFavorites = (favoritesList: Product[]) => {
     if (user) return // No guardar temporales si el usuario está autenticado
-    
+
     try {
       localStorage.setItem("sr-robot-temp-favorites", JSON.stringify(favoritesList))
     } catch (error) {
@@ -128,13 +127,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await authFetch("/favoritos", {
         method: "POST",
         body: JSON.stringify({
-          productoId: parseInt(product.id)
-        })
+          productoId: Number.parseInt(product.id),
+        }),
       })
-      
+
       // Recargar favoritos desde el backend
       await loadFavoritesFromBackend()
-      
     } catch (error) {
       console.error("Error adding to favorites in backend:", error)
       // Fallback a favoritos temporales en caso de error
@@ -149,7 +147,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setFavorites((prev) => {
       const exists = prev.find((fav) => fav.id === product.id)
       if (exists) return prev
-      
+
       const newFavorites = [...prev, product]
       saveTemporaryFavorites(newFavorites)
       return newFavorites
@@ -166,12 +164,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true)
       await authFetch(`/favoritos/${productId}`, {
-        method: "DELETE"
+        method: "DELETE",
       })
-      
+
       // Recargar favoritos desde el backend
       await loadFavoritesFromBackend()
-      
     } catch (error) {
       console.error("Error removing from favorites in backend:", error)
       // Fallback a favoritos temporales en caso de error
@@ -194,7 +191,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkIsFavorite = async (productId: string): Promise<boolean> => {
     if (!user) {
       // Para usuarios no autenticados, verificar en memoria
-      return favorites.some(fav => fav.id === productId)
+      return favorites.some((fav) => fav.id === productId)
     }
 
     try {
@@ -202,7 +199,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return data.esFavorito
     } catch (error) {
       console.error("Error checking favorite status:", error)
-      return favorites.some(fav => fav.id === productId)
+      return favorites.some((fav) => fav.id === productId)
     }
   }
 
@@ -215,7 +212,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       for (const favorite of guestFavorites) {
         await addToFavoritesBackend(favorite)
       }
-      
+
       console.log("Favoritos temporales migrados exitosamente al usuario")
     } catch (error) {
       console.error("Error migrating guest favorites:", error)
@@ -259,20 +256,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // Agregar cada item del carrito temporal al carrito del usuario
       for (const item of guestItems) {
-        await addToCartBackend({
-          id: item.id,
-          name: item.name,
-          category: item.category || "",
-          price: item.price,
-          image: item.image,
-          inStock: item.inStock,
-          description: item.description || "",
-          rating: item.rating || 4.5,
-          reviews: item.reviews || 0,
-          featured: item.featured || false,
-        }, item.quantity)
+        await addToCartBackend(
+          {
+            id: item.id,
+            name: item.name,
+            category: item.category || "",
+            price: item.price,
+            image: item.image,
+            inStock: item.inStock,
+            description: item.description || "",
+            rating: item.rating || 4.5,
+            reviews: item.reviews || 0,
+            featured: item.featured || false,
+          },
+          item.quantity,
+        )
       }
-      
+
       console.log("Carrito temporal migrado exitosamente al usuario")
     } catch (error) {
       console.error("Error migrating guest cart:", error)
@@ -280,7 +280,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   // Agregar al carrito en el backend
-  const addToCartBackend = async (product: Product, quantity: number = 1) => {
+  const addToCartBackend = async (product: Product, quantity = 1) => {
     if (!user) {
       // Si no hay usuario, agregar al carrito temporal (solo en memoria)
       addToCartTemporal(product)
@@ -292,9 +292,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await authFetch("/cart", {
         method: "POST",
         body: JSON.stringify({
-          productoId: parseInt(product.id),
-          cantidad: quantity
-        })
+          productoId: Number.parseInt(product.id),
+          cantidad: quantity,
+        }),
       })
       // Recargar el carrito desde el backend para asegurar consistencia
       await loadCartFromBackend()
@@ -312,23 +312,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setItems((prev) => {
       const existing = prev.find((item) => item.id === product.id)
       let newItems: CartItem[]
-      
+
       if (existing) {
-        newItems = prev.map((item) => 
-          item.id === product.id 
-            ? { ...item, quantity: item.quantity + 1 } 
-            : item
-        )
+        newItems = prev.map((item) => (item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item))
       } else {
-        newItems = [...prev, { 
-          ...product, 
-          quantity: 1 
-        }]
+        newItems = [
+          ...prev,
+          {
+            ...product,
+            quantity: 1,
+          },
+        ]
       }
-      
+
       // IMPORTANTE: NO guardar en localStorage para invitados
       // El carrito temporal solo existe durante esta sesión
-      
+
       return newItems
     })
   }
@@ -342,7 +341,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       setIsLoading(true)
-      
+
       if (quantity <= 0) {
         await removeFromCartBackend(productId)
         return
@@ -350,14 +349,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Primero necesitamos obtener el id_carrito del item
       const cartData = await authFetch("/cart")
-      const cartItem = cartData.items.find((item: any) => 
-        item.productoId.toString() === productId
-      )
-      
+      const cartItem = cartData.items.find((item: any) => item.productoId.toString() === productId)
+
       if (cartItem) {
         await authFetch(`/cart/${cartItem.id}`, {
           method: "PUT",
-          body: JSON.stringify({ cantidad: quantity })
+          body: JSON.stringify({ cantidad: quantity }),
         })
         await loadCartFromBackend()
       }
@@ -377,10 +374,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setItems((prev) => {
-      const newItems = prev.map((item) => 
-        item.id === productId ? { ...item, quantity } : item
-      )
-      
+      const newItems = prev.map((item) => (item.id === productId ? { ...item, quantity } : item))
+
       return newItems
     })
   }
@@ -394,16 +389,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       setIsLoading(true)
-      
+
       // Primero necesitamos obtener el id_carrito del item
       const cartData = await authFetch("/cart")
-      const cartItem = cartData.items.find((item: any) => 
-        item.productoId.toString() === productId
-      )
-      
+      const cartItem = cartData.items.find((item: any) => item.productoId.toString() === productId)
+
       if (cartItem) {
         await authFetch(`/cart/${cartItem.id}`, {
-          method: "DELETE"
+          method: "DELETE",
         })
         await loadCartFromBackend()
       }
@@ -433,7 +426,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true)
       await authFetch("/cart", {
-        method: "DELETE"
+        method: "DELETE",
       })
       setItems([])
     } catch (error) {

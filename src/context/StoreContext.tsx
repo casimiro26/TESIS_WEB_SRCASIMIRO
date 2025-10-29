@@ -72,7 +72,7 @@ const normalizeProductFromAPI = (apiProduct: any): Product => {
     inStock: apiProduct.inStock !== undefined ? apiProduct.inStock : true,
     featured: apiProduct.featured || false,
     reviewsList: apiProduct.reviewsList || [],
-    createdAt: apiProduct.createdAt
+    createdAt: apiProduct.createdAt,
   }
 }
 
@@ -88,7 +88,7 @@ const normalizeProductToAPI = (product: Omit<Product, "id"> | Partial<Product>) 
     description: product.description,
     characteristics: product.characteristics,
     productCode: product.productCode,
-    inStock: product.inStock
+    inStock: product.inStock,
   }
 }
 
@@ -106,7 +106,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       // Preparar headers, pero sin incluir Authorization
       const headers: Record<string, string> = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       }
 
       // Opcionalmente, incluir token solo si existe (para filtros de admin)
@@ -117,7 +117,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const response = await fetch("https://api-web-egdy.onrender.com/api/productos", {
         method: "GET",
-        headers
+        headers,
       })
 
       if (!response.ok) {
@@ -126,15 +126,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       const apiData = await response.json()
-      
+
       if (!apiData.productos || !Array.isArray(apiData.productos)) {
         throw new Error("Invalid response format from server")
       }
 
       const normalizedProducts = apiData.productos.map(normalizeProductFromAPI)
-      
+
       setProducts(normalizedProducts)
-      
     } catch (err: any) {
       console.error("Error loading products:", err)
       setError(err.message || "Failed to load products from API")
@@ -182,16 +181,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       const productData = normalizeProductToAPI(product)
-      
+
       console.log("🔄 Enviando producto a la API:", productData)
 
       const response = await fetch("https://api-web-egdy.onrender.com/api/productos", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(productData)
+        body: JSON.stringify(productData),
       })
 
       if (response.status === 401) {
@@ -206,9 +205,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const responseData = await response.json()
       console.log("✅ Respuesta del servidor:", responseData)
-      
+
       const productFromResponse = responseData.product || responseData
-      
+
       if (!productFromResponse) {
         console.error("❌ No hay datos de producto en la respuesta")
         throw new Error("Invalid response from server: no product data")
@@ -216,14 +215,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const normalizedProduct = normalizeProductFromAPI(productFromResponse)
       console.log("✅ Producto normalizado:", normalizedProduct)
-      
+
       // Actualizar estado local
-      setProducts(prev => {
+      setProducts((prev) => {
         const updatedProducts = [...prev, normalizedProduct]
         console.log("🔄 Actualizando productos:", updatedProducts.length)
         return updatedProducts
       })
-      
+
       return true
     } catch (err: any) {
       console.error("❌ Error adding product:", err)
@@ -246,7 +245,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // Para la API necesitamos el id_producto numérico
-      const productToUpdate = products.find(p => p.id === id)
+      const productToUpdate = products.find((p) => p.id === id)
       if (!productToUpdate) {
         throw new Error("Product not found")
       }
@@ -261,10 +260,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const response = await fetch(`https://api-web-egdy.onrender.com/api/productos/${productId}`, {
         method: "PUT",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(productData)
+        body: JSON.stringify(productData),
       })
 
       if (response.status === 401) {
@@ -280,10 +279,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const updatedProductData = responseData.product || updatedProduct
 
       // Actualizar estado local
-      setProducts(prev => prev.map(p => 
-        p.id === id ? { ...p, ...updatedProductData } : p
-      ))
-      
+      setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updatedProductData } : p)))
+
       return true
     } catch (err: any) {
       console.error("Error updating product:", err)
@@ -306,7 +303,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // Para la API necesitamos el id_producto numérico
-      const productToDelete = products.find(p => p.id === id)
+      const productToDelete = products.find((p) => p.id === id)
       if (!productToDelete) {
         throw new Error("Product not found")
       }
@@ -319,9 +316,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const response = await fetch(`https://api-web-egdy.onrender.com/api/productos/${productId}`, {
         method: "DELETE",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       })
 
       if (response.status === 401) {
@@ -334,8 +331,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // Actualizar estado local
-      setProducts(prev => prev.filter(p => p.id !== id))
-      
+      setProducts((prev) => prev.filter((p) => p.id !== id))
+
       return true
     } catch (err: any) {
       console.error("Error deleting product:", err)
