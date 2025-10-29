@@ -356,7 +356,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     }
   }
 
-  const handleStripePayment = async () => {
+  const handleMongoPayment = async () => {
     if (!user) {
       alert("Debes iniciar sesión para confirmar el pedido")
       return
@@ -375,21 +375,54 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     setCurrentStep(4)
 
     try {
-      console.log("💳 Procesando pago con Stripe...")
+      console.log("💳 Procesando pago directamente en MongoDB...")
       console.log("💰 Monto total:", total, "PEN")
       
-      // Guardar toda la información ANTES de limpiar el carrito
+      // Preparar datos para el pago
+      const pagoData = {
+        monto: total,
+        informacionEnvio: {
+          nombreCompleto: formData.fullName,
+          email: formData.email,
+          telefono: formData.phone,
+          direccion: fullAddress,
+          dni: formData.dni
+        },
+        productos: items.map(item => ({
+          productoId: item.id,
+          nombre: item.name,
+          precio: item.price,
+          cantidad: item.quantity,
+          imagen: item.image
+        })),
+        detallesTarjeta: {
+          ultimos4Digitos: cardDetails.cardNumber.slice(-4),
+          tipo: "credito"
+        }
+      }
+
+      // Llamar al nuevo endpoint del backend
+      const response = await fetch("https://api-web-egdy.onrender.com/api/pagos/procesar-pago", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${user.token}`
+        },
+        body: JSON.stringify(pagoData)
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.mensaje || "Error al procesar el pago")
+      }
+
+      // Guardar información para el comprobante
       setFinalTotal(total)
       setFinalSubtotal(subtotal)
       setFinalShipping(shipping)
-      setFinalItems([...items]) // Guardar copia de los items
-      
-      // Simular procesamiento de pago
-      await new Promise(resolve => setTimeout(resolve, 3000))
-      
-      // Generar ID de pago simulado
-      const simulatedPaymentId = `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      setStripePaymentId(simulatedPaymentId)
+      setFinalItems([...items])
+      setStripePaymentId(result.pago.ordenId)
       
       // Crear orden local
       const order = {
@@ -406,8 +439,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
         })),
         total: total,
         status: "confirmed" as const,
-        paymentMethod: "stripe" as const,
-        stripePaymentId: simulatedPaymentId,
+        paymentMethod: "tarjeta" as const,
+        ordenId: result.pago.ordenId,
         cardLast4: cardDetails.cardNumber.slice(-4)
       }
 
@@ -418,7 +451,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       clearCart()
       
       console.log("🎉 ¡Pago exitoso!")
-      console.log("📋 ID de pago:", simulatedPaymentId)
+      console.log("📋 ID de Orden:", result.pago.ordenId)
       console.log("💳 Tarjeta terminada en:", cardDetails.cardNumber.slice(-4))
       console.log("💰 Monto pagado:", total, "PEN")
       
@@ -489,7 +522,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
 
     doc.setFont("helvetica", "normal")
     doc.setFontSize(10)
-    doc.text(`Método de Pago: Stripe (Tarjeta)`, 20, y)
+    doc.text(`Método de Pago: Tarjeta de Crédito/Débito`, 20, y)
     y += 6
     doc.text(`ID de Pago: ${stripePaymentId}`, 20, y)
     y += 6
@@ -558,7 +591,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     doc.text("MÉTODO DE PAGO:", 20, y)
     y += 7
     doc.setFont("helvetica", "normal")
-    doc.text("💳 Stripe - Tarjeta de Crédito/Débito", 20, y)
+    doc.text("💳 Tarjeta de Crédito/Débito", 20, y)
     y += 6
     doc.text(`💰 Monto Procesado: S/ ${finalTotal.toFixed(2)} PEN`, 20, y)
     y += 12
@@ -921,7 +954,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                           <h4 className="text-xl font-bold text-gray-900 dark:text-white">Pago con Tarjeta</h4>
                         </div>
                         <p className="text-gray-600 dark:text-gray-400">
-                          Pago seguro procesado por Stripe
+                          Pago seguro procesado directamente
                         </p>
                       </div>
 
@@ -982,7 +1015,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                       </div>
 
                       <button
-                        onClick={handleStripePayment}
+                        onClick={handleMongoPayment}
                         disabled={isProcessing || total === 0}
                         className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none text-lg"
                       >
@@ -1002,7 +1035,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                       <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                         <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
                           <Shield className="w-4 h-4" />
-                          <span>Pago 100% seguro | Protegido por Stripe</span>
+                          <span>Pago 100% seguro | Protegido por encriptación</span>
                         </div>
                       </div>
                     </div>
@@ -1031,7 +1064,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                         {isProcessing ? "Procesando Pago..." : "Confirmando Pago"}
                       </h3>
                       <p className="text-gray-600 dark:text-gray-400">
-                        {isProcessing ? "Estamos procesando tu pago con Stripe..." : "Verificando el estado de tu pago..."}
+                        {isProcessing ? "Estamos procesando tu pago..." : "Verificando el estado de tu pago..."}
                       </p>
                     </div>
 
@@ -1141,7 +1174,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                 </div>
                 
                 <div className="grid grid-cols-1 text-xs text-gray-600 dark:text-gray-400">
-                  <p><strong className="text-gray-900 dark:text-white">Método:</strong> Stripe (Tarjeta)</p>
+                  <p><strong className="text-gray-900 dark:text-white">Método:</strong> Tarjeta</p>
                   <p><strong className="text-gray-900 dark:text-white">ID de Pago:</strong> {stripePaymentId}</p>
                   <p><strong className="text-gray-900 dark:text-white">Tarjeta:</strong> **** **** **** {cardDetails.cardNumber.slice(-4)}</p>
                   <p><strong className="text-gray-900 dark:text-white">Cliente:</strong> {formData.fullName}</p>
@@ -1174,7 +1207,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
 
               <div className="mt-4 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                 <p className="text-xs text-purple-700 dark:text-purple-400">
-                  💡 <strong>Para ver el pago en Stripe:</strong> Ve a dashboard.stripe.com → Payments → Busca el ID: {stripePaymentId}
+                  💡 <strong>Para ver el pago:</strong> Ve a tu historial de pedidos en tu cuenta.
                 </p>
               </div>
             </div>
