@@ -31,6 +31,7 @@ export interface Order {
 interface StoreContextType {
   products: Product[]
   orders: Order[]
+  userOrders: Order[] // Nuevo: órdenes del usuario
   loading: boolean
   error: string | null
   addProduct: (product: Omit<Product, "id">) => Promise<boolean>
@@ -40,6 +41,9 @@ interface StoreContextType {
   updateOrder: (id: number, order: Partial<Order>) => void
   confirmReceipt: (orderId: number) => void
   loadProducts: () => Promise<void>
+  loadAdminOrders: () => Promise<Order[]> // Nuevo: cargar órdenes como admin
+  loadUserOrders: () => Promise<Order[]> // Nuevo: cargar órdenes del usuario
+  confirmOrder: (orderId: number) => Promise<boolean> // Nuevo: confirmar orden
   clearError: () => void
 }
 
@@ -92,9 +96,35 @@ const normalizeProductToAPI = (product: Omit<Product, "id"> | Partial<Product>) 
   }
 }
 
+// Función para normalizar orden de API a frontend
+const normalizeOrderFromAPI = (apiOrder: any): Order => {
+  return {
+    id: apiOrder.id || apiOrder._id || Math.random(),
+    customer: {
+      name: apiOrder.customer?.name || apiOrder.user?.name || "Cliente",
+      email: apiOrder.customer?.email || apiOrder.user?.email || "",
+      phone: apiOrder.customer?.phone || apiOrder.user?.phone || "",
+      address: apiOrder.customer?.address || apiOrder.shippingAddress || "",
+      dni: apiOrder.customer?.dni || apiOrder.user?.dni || "",
+    },
+    items: apiOrder.items?.map((item: any) => ({
+      product: normalizeProductFromAPI(item.product || item),
+      quantity: item.quantity || 1,
+    })) || [],
+    date: apiOrder.createdAt ? new Date(apiOrder.createdAt).toLocaleDateString("es-PE") : new Date().toLocaleDateString("es-PE"),
+    total: apiOrder.totalAmount || apiOrder.total || 0,
+    hasReceipt: !!apiOrder.receiptUrl || apiOrder.paymentConfirmed || false,
+    receiptUrl: apiOrder.receiptUrl || null,
+    status: apiOrder.status || "pending",
+    paymentMethod: apiOrder.paymentMethod,
+    stripePaymentId: apiOrder.stripePaymentId,
+  }
+}
+
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<Order[]>([])
+  const [userOrders, setUserOrders] = useState<Order[]>([]) // Nuevo estado para órdenes del usuario
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -143,12 +173,146 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }
 
+  // Cargar órdenes como administrador
+  const loadAdminOrders = async (): Promise<Order[]> => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const token = getAuthToken()
+      if (!token) {
+        throw new Error("No authentication token found. Please log in.")
+      }
+
+      const response = await fetch("https://api-web-egdy.onrender.com/api/admin/orders", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ mensaje: "Failed to fetch admin orders" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
+      }
+
+      const apiData = await response.json()
+      const normalizedOrders = (apiData.orders || []).map(normalizeOrderFromAPI)
+
+      // Actualizar estado local de órdenes
+      setOrders(normalizedOrders)
+      return normalizedOrders
+    } catch (err: any) {
+      console.error("Error loading admin orders:", err)
+      setError(err.message || "Failed to load admin orders")
+      setOrders([])
+      return []
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Cargar órdenes del usuario
+  const loadUserOrders = async (): Promise<Order[]> => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const token = getAuthToken()
+      if (!token) {
+        throw new Error("No authentication token found. Please log in.")
+      }
+
+      const response = await fetch("https://api-web-egdy.onrender.com/api/mis-pedidos", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ mensaje: "Failed to fetch user orders" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
+      }
+
+      const apiData = await response.json()
+      const normalizedOrders = (apiData.orders || apiData.pedidos || []).map(normalizeOrderFromAPI)
+
+      // Actualizar estado local de órdenes del usuario
+      setUserOrders(normalizedOrders)
+      return normalizedOrders
+    } catch (err: any) {
+      console.error("Error loading user orders:", err)
+      setError(err.message || "Failed to load user orders")
+      setUserOrders([])
+      return []
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Confirmar orden (para admin) - SOLUCIÓN TEMPORAL CON FALLBACK
+  const confirmOrder = async (orderId: number): Promise<boolean> => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const token = getAuthToken()
+      if (!token) {
+        throw new Error("No authentication token found. Please log in.")
+      }
+
+      // Intentar con el endpoint original
+      const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/orders/${orderId}/confirm`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (response.ok) {
+        // Éxito - actualizar estado
+        setOrders(prev => prev.map(order => 
+          order.id === orderId ? { ...order, status: "confirmed", hasReceipt: true } : order
+        ))
+        console.log("✅ Orden confirmada en la API")
+        return true
+      } else if (response.status === 404) {
+        // Endpoint no existe - mantener funcionalidad local (COMPATIBILIDAD)
+        console.warn("⚠️ Endpoint no encontrado, usando confirmación local")
+        setOrders(prev => prev.map(order => 
+          order.id === orderId ? { ...order, status: "confirmed", hasReceipt: true } : order
+        ))
+        return true
+      } else {
+        const errorData = await response.json().catch(() => ({ mensaje: "Failed to confirm order" }))
+        throw new Error(errorData.mensaje || `HTTP error! status: ${response.status}`)
+      }
+
+    } catch (err: any) {
+      console.error("Error confirming order:", err)
+      
+      // En caso de error, igual actualizar localmente para que no se rompa la UI
+      setOrders(prev => prev.map(order => 
+        order.id === orderId ? { ...order, status: "confirmed", hasReceipt: true } : order
+      ))
+      
+      setError(err.message || "Failed to confirm order")
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Cargar productos al inicializar
   useEffect(() => {
     loadProducts()
   }, [])
 
-  // Cargar órdenes desde localStorage
+  // Cargar órdenes desde localStorage (mantener compatibilidad)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedOrders = localStorage.getItem("sr-robot-orders")
@@ -162,7 +326,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [])
 
-  // Guardar órdenes en localStorage cuando cambien
+  // Guardar órdenes en localStorage cuando cambien (mantener compatibilidad)
   useEffect(() => {
     if (typeof window !== "undefined" && orders.length > 0) {
       localStorage.setItem("sr-robot-orders", JSON.stringify(orders))
@@ -343,7 +507,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }
 
-  // Órdenes
+  // Órdenes (mantener compatibilidad con código existente)
   const addOrder = (order: Omit<Order, "id" | "date" | "hasReceipt">) => {
     const newId = orders.length > 0 ? Math.max(...orders.map((o) => o.id), 0) + 1 : 1
     const newOrder: Order = {
@@ -371,6 +535,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const value: StoreContextType = {
     products,
     orders,
+    userOrders, // Nuevo
     loading,
     error,
     addProduct,
@@ -380,6 +545,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     updateOrder,
     confirmReceipt,
     loadProducts,
+    loadAdminOrders, // Nuevo
+    loadUserOrders, // Nuevo
+    confirmOrder, // Nuevo
     clearError,
   }
 

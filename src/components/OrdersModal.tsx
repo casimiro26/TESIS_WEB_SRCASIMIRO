@@ -4,6 +4,7 @@ import type React from "react"
 import { X, ShoppingCart, Package, Truck, CheckCircle, Clock, CreditCard } from "lucide-react"
 import { useStore } from "../context/StoreContext"
 import { useAuth } from "../context/AuthContext"
+import { useEffect } from "react"
 
 interface OrdersModalProps {
   isOpen: boolean
@@ -11,13 +12,16 @@ interface OrdersModalProps {
 }
 
 export const OrdersModal: React.FC<OrdersModalProps> = ({ isOpen, onClose }) => {
-  const { orders } = useStore()
+  const { loadUserOrders, userOrders } = useStore()
   const { user } = useAuth()
 
-  if (!isOpen) return null
+  useEffect(() => {
+    if (isOpen && user) {
+      loadUserOrders()
+    }
+  }, [isOpen, user, loadUserOrders])
 
-  // Filter orders for current user
-  const userOrders = orders.filter((order) => order.customer.email === user?.email)
+  if (!isOpen) return null
 
   const getStatusIcon = (status: string) => {
     switch (status) {

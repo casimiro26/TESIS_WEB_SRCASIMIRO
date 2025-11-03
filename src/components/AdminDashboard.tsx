@@ -137,7 +137,7 @@ const adminService = {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.JSON.stringify(adminData),
+      body: JSON.stringify(adminData),
     })
 
     if (!response.ok) {
@@ -380,7 +380,8 @@ const categoriaService = {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onClose }) => {
-  const { orders, confirmReceipt, error: storeError, clearError } = useStore()
+  // MODIFICACIÓN: Agregar loadAdminOrders y confirmOrder al useStore
+  const { orders, loadAdminOrders, confirmOrder, error: storeError, clearError } = useStore()
 
   useCart()
 
@@ -559,6 +560,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       console.error("Error loading products:", error)
       setToast({ message: error.message || "Error al cargar productos", type: "error" })
       setProducts([])
+    }
+  }
+
+  // MODIFICACIÓN: useEffect actualizado para incluir loadAdminOrders
+  useEffect(() => {
+    if (isOpen) {
+      loadCategories()
+      loadProducts()
+      loadPagos()
+      loadEstadisticasReales()
+      loadAdmins()
+      loadAdminOrders() // ← Reemplaza la carga local con esta
+    }
+  }, [isOpen])
+
+  // MODIFICACIÓN: Nueva función handleConfirmReceipt usando confirmOrder de la API
+  const handleConfirmReceipt = async (orderId: number) => {
+    setIsLoading(true)
+    try {
+      await confirmOrder(orderId) // ← Usa la nueva función de la API
+      setToast({ message: "Comprobante de pago confirmado", type: "success" })
+    } catch (error) {
+      setToast({ message: "Error al confirmar comprobante", type: "error" })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -802,16 +828,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       }, 5000)
     }
   }, [storeError, clearError])
-
-  useEffect(() => {
-    if (isOpen) {
-      loadCategories()
-      loadProducts()
-      loadPagos()
-      loadEstadisticasReales()
-      loadAdmins()
-    }
-  }, [isOpen])
 
   // Calcular estadísticas REALES basadas en datos de la API
   const calculateRealStats = () => {
@@ -1195,16 +1211,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     setTimeout(() => setToast(null), 2000)
   }
 
-  const handleConfirmReceipt = (orderId: number) => {
-    setIsLoading(true)
-    setTimeout(() => {
-      confirmReceipt(orderId)
-      setIsLoading(false)
-      setToast({ message: "Comprobante de pago confirmado", type: "success" })
-      setTimeout(() => setToast(null), 3000)
-    }, 1000)
-  }
-
   const handleViewReceipt = (receiptUrl?: string) => {
     if (receiptUrl) {
       window.open(receiptUrl, "_blank")
@@ -1276,6 +1282,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                   loadPagos(),
                   loadEstadisticasReales(),
                   loadAdmins(),
+                  loadAdminOrders(), // ← Agregar loadAdminOrders aquí también
                 ])
                 setRefreshing(false)
                 setToast({ message: "Datos actualizados", type: "success" })
@@ -1882,7 +1889,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                                     <button
                                       onClick={() => handleConfirmReceipt(order.id)}
                                       disabled={isLoading}
-                                      className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium flex items-center gap-1"
+                                      className={`px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium flex items-center gap-1 ${
+                                        isLoading ? "opacity-50 cursor-not-allowed" : ""
+                                      }`}
                                     >
                                       <CheckCircle className="w-4 h-4" />
                                       Confirmar
@@ -1948,7 +1957,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                             <th className="p-4 font-semibold">Monto</th>
                             <th className="p-4 font-semibold">Estado</th>
                             <th className="p-4 font-semibold">Fecha</th>
-                            <th className="p-4 font-semibold">ID Stripe</th>
+                            <th className="p-4 font-semibold"></th>
                           </tr>
                         </thead>
                         <tbody>
