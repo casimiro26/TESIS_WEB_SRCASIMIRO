@@ -2,10 +2,12 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { X, Send, MessageCircle, Eye, Heart, ShoppingCart, Bot, Trash2, Plus, Minus, Check } from "lucide-react"
+import { X, Send, MessageCircle, Eye, Heart, ShoppingCart, Bot, Trash2, Plus, Minus } from "lucide-react"
 import { useCart } from "../context/CartContext"
 import { useAuth } from "../context/AuthContext"
 import { fetchProducts, fetchCategories } from "../data/products" // Cambiado a fetch dinámico
+import { CheckoutModal } from "./CheckoutModal" // Import CheckoutModal component
+import { AuthModal } from "./AuthModal" // Import AuthModal component
 
 const API_BASE_URL = "http://localhost:3000" // Ajusta si deployas el chatbot API (o usa tu API principal si integras)
 
@@ -44,6 +46,9 @@ export const Footer: React.FC = () => {
   const [productsLoading, setProductsLoading] = useState(false) // Loading para products
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set()) // Para selección múltiple en products
   const [cartTotal, setCartTotal] = useState(0) // Total del carrito
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false) // Add state for checkout modal
+  const [isAuthOpen, setIsAuthOpen] = useState(false)
+  const [authType, setAuthType] = useState<"login" | "register">("login")
 
   interface Message {
     id: number
@@ -51,14 +56,6 @@ export const Footer: React.FC = () => {
     isBot: boolean
     timestamp: Date
   }
-
-  const quickResponses = [
-    "¿Tienen auriculares gaming?",
-    "Información de envíos",
-    "¿Cómo puedo rastrear mi pedido?",
-    "Métodos de pago",
-    "Política de devoluciones",
-  ]
 
   // Fetch bienvenida inicial al abrir chat
   useEffect(() => {
@@ -76,7 +73,7 @@ export const Footer: React.FC = () => {
 
   // Calcular total del carrito cuando cambian items
   useEffect(() => {
-    const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
     setCartTotal(total)
   }, [items])
 
@@ -87,14 +84,14 @@ export const Footer: React.FC = () => {
       // Fetch paralelo para eficiencia
       const [productsRes, categoriesRes] = await Promise.all([
         fetchProducts(token || undefined),
-        fetchCategories(token || undefined)
+        fetchCategories(token || undefined),
       ])
       setDynamicProducts(productsRes)
       setDynamicCategories(["Todas", ...categoriesRes]) // Agrega "Todas" para filtro all
-      console.log('Productos de DB cargados:', productsRes) // Debug
-      console.log('Categorías de DB cargadas:', categoriesRes) // Debug
+      console.log("Productos de DB cargados:", productsRes) // Debug
+      console.log("Categorías de DB cargadas:", categoriesRes) // Debug
     } catch (err) {
-      console.error('Error loading products/categories:', err)
+      console.error("Error loading products/categories:", err)
       // No set error aquí, ya que fallback maneja
     } finally {
       setProductsLoading(false)
@@ -124,7 +121,7 @@ export const Footer: React.FC = () => {
         setMessages([
           {
             id: 1,
-            text: "¡Hola! Soy Sr. Robot, el asistente virtual de la tienda tecnológica Sr Robot. 😊 Estoy aquí para ayudarte con todo sobre nuestros productos: laptops, smartphones, tablets, accesorios y más. ¿En qué puedo ayudarte hoy? Por ejemplo, puedes preguntar por precios en soles peruanos (S/), especificaciones o categorías. ¡Dime!",
+            text: "¡Bienvenido a Sr. Robot! Soy tu asistente virtual, listo para brindarte toda la información que necesites sobre nuestros productos tecnológicos. Consulta sobre laptops, teclados, cámaras de seguridad, accesorios y más.",
             isBot: true,
             timestamp: new Date(),
           },
@@ -136,7 +133,7 @@ export const Footer: React.FC = () => {
       setMessages([
         {
           id: 1,
-          text: "¡Hola! Soy Sr. Robot, el asistente virtual de la tienda tecnológica Sr Robot. 😊 Estoy aquí para ayudarte con todo sobre nuestros productos: laptops, smartphones, tablets, accesorios y más. ¿En qué puedo ayudarte hoy? Por ejemplo, puedes preguntar por precios en soles peruanos (S/), especificaciones o categorías. ¡Dime!",
+          text: "¡Bienvenido a Sr. Robot! Soy tu asistente virtual, listo para brindarte toda la información que necesites sobre nuestros productos tecnológicos. Consulta sobre laptops, teclados, cámaras de seguridad, accesorios y más.",
           isBot: true,
           timestamp: new Date(),
         },
@@ -195,15 +192,9 @@ export const Footer: React.FC = () => {
     }
   }
 
-  const handleQuickResponse = (response: string) => {
-    setInputMessage(response)
-    // Auto-send después de un breve delay
-    setTimeout(() => handleSendMessage(), 500)
-  }
-
   // Filtrar productos por categoría seleccionada
-  const filteredProducts = dynamicProducts.filter(product => 
-    selectedCategory === "Todas" || product.category === selectedCategory
+  const filteredProducts = dynamicProducts.filter(
+    (product) => selectedCategory === "Todas" || product.category === selectedCategory,
   )
 
   // Manejar selección de producto
@@ -220,8 +211,8 @@ export const Footer: React.FC = () => {
   // Agregar seleccionados al carrito
   const addSelectedToCart = () => {
     if (selectedProducts.size === 0) return
-    selectedProducts.forEach(productId => {
-      const product = dynamicProducts.find(p => p.id === productId)
+    selectedProducts.forEach((productId) => {
+      const product = dynamicProducts.find((p) => p.id === productId)
       if (product) {
         addToCart({ ...product, quantity: 1 }) // Asume que addToCart acepta el producto con quantity
       }
@@ -230,16 +221,23 @@ export const Footer: React.FC = () => {
     // Opcional: Mostrar mensaje de éxito en chat o notificación
   }
 
-  // Proceder a checkout
   const proceedToCheckout = () => {
     if (items.length === 0) return
-    // Redirigir a página de checkout, ajusta la ruta según tu app
-    window.location.href = '/checkout'
+
+    // Check if user is authenticated
+    if (!user) {
+      // User not authenticated, open auth modal
+      setAuthType("login")
+      setIsAuthOpen(true)
+    } else {
+      // User is authenticated, open checkout modal
+      setIsCheckoutOpen(true)
+    }
   }
 
   // Actualizar cantidad en carrito
   const handleQuantityChange = (itemId: string, delta: number) => {
-    const item = items.find(i => i.id === itemId)
+    const item = items.find((i) => i.id === itemId)
     if (item) {
       const newQuantity = Math.max(1, item.quantity + delta)
       updateQuantity(itemId, newQuantity)
@@ -250,6 +248,19 @@ export const Footer: React.FC = () => {
   const handleRemoveFromCart = (itemId: string) => {
     removeFromCart(itemId)
   }
+
+  const getCategoryNames = (): string[] => {
+    return dynamicCategories.map((cat) => {
+      // Handle both string and object formats
+      if (typeof cat === "string") {
+        return cat
+      }
+      // If it's an object, extract the name property
+      return cat.nombre || cat.name || String(cat)
+    })
+  }
+
+  const categoryNames = getCategoryNames()
 
   return (
     <footer className="bg-gray-900 dark:bg-gray-950 text-white relative">
@@ -281,7 +292,11 @@ export const Footer: React.FC = () => {
                       className="w-10 h-10 hover:opacity-80 transition-opacity"
                     />
                   </a>
-                  <a href="https://web.facebook.com/p/Se%C3%B1or-Robot-100063654114002/?_rdc=1&_rdr#" target="_blank" rel="noopener noreferrer">
+                  <a
+                    href="https://web.facebook.com/p/Se%C3%B1or-Robot-100063654114002/?_rdc=1&_rdr#"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <img
                       src="https://upload.wikimedia.org/wikipedia/commons/5/51/Facebook_f_logo_%282019%29.svg"
                       alt="Facebook"
@@ -350,7 +365,7 @@ export const Footer: React.FC = () => {
                 <span className="text-green-500">🛡️</span> Compra Segura
               </li>
               <li>
-                <span className="text-blue-500">🚚</span> Envío Gratis + S/. 99
+                <span className="text-blue-500">🚚</span> Envío S/. 15
               </li>
               <li>
                 <span className="text-purple-500">🔒</span> Pago Seguro
@@ -525,7 +540,6 @@ export const Footer: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    
                   </>
                 )}
 
@@ -534,15 +548,17 @@ export const Footer: React.FC = () => {
                     <h4 className="font-semibold text-gray-900 dark:text-white">Productos Destacados</h4>
                     {/* Filtro por categoría */}
                     <div className="flex flex-col space-y-2">
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtrar por categoría:</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Filtrar por categoría:
+                      </label>
                       <select
                         value={selectedCategory}
                         onChange={(e) => setSelectedCategory(e.target.value)}
                         className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                       >
-                        {dynamicCategories.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
+                        {categoryNames.map((catName, index) => (
+                          <option key={`${catName}-${index}`} value={catName}>
+                            {catName}
                           </option>
                         ))}
                       </select>
@@ -553,12 +569,14 @@ export const Footer: React.FC = () => {
                       disabled={selectedProducts.size === 0 || productsLoading}
                       className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white py-2 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
                     >
-                      Agregar {selectedProducts.size} seleccionado{selectedProducts.size !== 1 ? 's' : ''} al carrito
+                      Agregar {selectedProducts.size} seleccionado{selectedProducts.size !== 1 ? "s" : ""} al carrito
                     </button>
                     {productsLoading ? (
                       <p className="text-center text-gray-500 dark:text-gray-400 py-8">Cargando productos...</p>
                     ) : filteredProducts.length === 0 ? (
-                      <p className="text-center text-gray-500 dark:text-gray-400 py-8">No hay productos en esta categoría</p>
+                      <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                        No hay productos en esta categoría
+                      </p>
                     ) : (
                       filteredProducts.slice(0, 6).map((product) => (
                         <div
@@ -650,7 +668,9 @@ export const Footer: React.FC = () => {
                               </button>
                             </div>
                             <div className="text-right flex-1">
-                              <p className="text-sm font-bold text-red-600">S/. {(item.price * item.quantity).toFixed(2)}</p>
+                              <p className="text-sm font-bold text-red-600">
+                                S/. {(item.price * item.quantity).toFixed(2)}
+                              </p>
                             </div>
                             <button
                               onClick={() => handleRemoveFromCart(item.id)}
@@ -705,6 +725,15 @@ export const Footer: React.FC = () => {
               )}
             </div>
           )}
+
+          <AuthModal
+            type={authType}
+            isOpen={isAuthOpen}
+            onClose={() => setIsAuthOpen(false)}
+            onSwitchType={(type) => setAuthType(type)}
+          />
+
+          <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} />
         </div>
       )}
     </footer>

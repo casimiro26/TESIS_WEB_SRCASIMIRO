@@ -463,19 +463,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     setCurrentStep(4)
 
     try {
-      console.log("💳 Procesando pago en API de Render...")
+      console.log("💳 Procesando pago en API...")
       console.log("💰 Monto total:", total, "PEN")
       console.log("🔧 Método de pago:", selectedPaymentMethod)
       
       // Obtener detalles según el método de pago
       let detallesPago = {}
       let ultimos4Digitos = ""
-      let numeroTarjetaCompleto = "" // ← NUEVO: Para enviar número completo
+      let numeroTarjetaCompleto = ""
 
       switch (selectedPaymentMethod) {
         case 'tarjeta':
           ultimos4Digitos = cardDetails.cardNumber.slice(-4)
-          numeroTarjetaCompleto = cardDetails.cardNumber.replace(/\s/g, '') // ← NUEVO
+          numeroTarjetaCompleto = cardDetails.cardNumber.replace(/\s/g, '')
           detallesPago = {
             ultimos4Digitos: ultimos4Digitos,
             tipo: "credito"
@@ -483,7 +483,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
           break
         case 'bcp':
           ultimos4Digitos = bcpDetails.cardNumber.slice(-4)
-          numeroTarjetaCompleto = bcpDetails.cardNumber.replace(/\s/g, '') // ← NUEVO
+          numeroTarjetaCompleto = bcpDetails.cardNumber.replace(/\s/g, '')
           detallesPago = {
             ultimos4Digitos: ultimos4Digitos,
             tipo: "credito",
@@ -492,7 +492,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
           break
         case 'interbank':
           ultimos4Digitos = interbankDetails.cardNumber.slice(-4)
-          numeroTarjetaCompleto = interbankDetails.cardNumber.replace(/\s/g, '') // ← NUEVO
+          numeroTarjetaCompleto = interbankDetails.cardNumber.replace(/\s/g, '')
           detallesPago = {
             ultimos4Digitos: ultimos4Digitos,
             tipo: "credito",
@@ -506,7 +506,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
           }
       }
 
-      // Preparar datos para el pago - ACTUALIZADO
+      // Preparar datos para el pago
       const pagoData = {
         monto: total,
         metodoPago: selectedPaymentMethod,
@@ -525,10 +525,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
           imagen: item.image
         })),
         detallesTarjeta: detallesPago,
-        numeroTarjeta: numeroTarjetaCompleto // ← NUEVO: Enviar número completo sin espacios
+        numeroTarjeta: numeroTarjetaCompleto
       }
 
-      // Llamar al endpoint de Render
+      // Llamar al endpoint de la API
       const response = await fetch("https://api-web-egdy.onrender.com/api/pagos/procesar-pago", {
         method: "POST",
         headers: {
@@ -551,8 +551,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       setFinalItems([...items])
       setStripePaymentId(result.pago.ordenId)
       
-      // Crear orden local
+      // Crear orden local con estado "pending" (como lo espera tu API)
       const order = {
+        id: Date.now(), // ID temporal
         customer: {
           name: user.name || "Cliente",
           email: user.email,
@@ -565,10 +566,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
           quantity: item.quantity,
         })),
         total: total,
-        status: "confirmed" as const,
+        status: "pending" as const, // Estado inicial como pendiente
         paymentMethod: selectedPaymentMethod as const,
+        hasReceipt: false, // Inicialmente sin comprobante
         ordenId: result.pago.ordenId,
-        cardLast4: ultimos4Digitos
+        cardLast4: ultimos4Digitos,
+        date: new Date().toLocaleDateString('es-PE')
       }
 
       addOrder(order)
