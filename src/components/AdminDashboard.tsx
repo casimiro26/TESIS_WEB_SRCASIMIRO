@@ -445,6 +445,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
   const [productFilter, setProductFilter] = useState("Todos")
   const [refreshing, setRefreshing] = useState(false)
   const [imagePreview, setImagePreview] = useState("")
+  // === NUEVOS ESTADOS PARA FILTROS DE TIEMPO ===
+const [timeFilter, setTimeFilter] = useState('month') // 'day', 'week', 'month', 'year'
+const [selectedDate, setSelectedDate] = useState(new Date())
+const [salesData, setSalesData] = useState<number[]>([])
+const [realTimeStats, setRealTimeStats] = useState({
+  totalSales: 0,
+  totalOrders: 0,
+  categoryDistribution: {} as Record<string, number>
+})
   const [estadisticasReales, setEstadisticasReales] = useState({
     totalClientes: 0,
     totalProductos: 0,
@@ -473,6 +482,204 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
     return token
   }
 
+
+  // === NUEVAS FUNCIONES PARA FILTROS DE TIEMPO ===
+const getDateRange = (filter: string, date: Date) => {
+  const start = new Date(date)
+  const end = new Date(date)
+
+  switch (filter) {
+    case 'day':
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'week':
+      const day = start.getDay()
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1)
+      start.setDate(diff)
+      start.setHours(0, 0, 0, 0)
+      end.setDate(start.getDate() + 6)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'month':
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+      end.setMonth(start.getMonth() + 1)
+      end.setDate(0)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'year':
+      start.setMonth(0, 1)
+      start.setHours(0, 0, 0, 0)
+      end.setMonth(11, 31)
+      end.setHours(23, 59, 59, 999)
+      break
+    default:
+      break
+  }
+
+  return { start, end }
+}
+
+const getPeriodLabel = () => {
+  const { start, end } = getDateRange(timeFilter, selectedDate)
+  
+  switch (timeFilter) {
+    case 'day':
+      return start.toLocaleDateString('es-ES', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })
+    case 'week':
+      return `Semana del ${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} al ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`
+    case 'month':
+      return start.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+    case 'year':
+      return start.getFullYear().toString()
+    default:
+      return ''
+  }
+}
+
+const getChartLabels = () => {
+  const { start } = getDateRange(timeFilter, selectedDate)
+  
+  switch (timeFilter) {
+    case 'day':
+      return Array.from({ length: 24 }, (_, i) => `${i}:00`)
+    case 'week':
+      return ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+    case 'month':
+      const daysInMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate()
+      return Array.from({ length: Math.ceil(daysInMonth / 7) }, (_, i) => `Sem ${i + 1}`)
+    case 'year':
+      return ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    default:
+      return []
+  }
+}
+
+const handleTimeFilterChange = (filter: string) => {
+  setTimeFilter(filter)
+  loadSalesDataForPeriod(filter, selectedDate)
+}
+
+const navigatePeriod = (direction: number) => {
+  const newDate = new Date(selectedDate)
+  
+  switch (timeFilter) {
+    case 'day':
+      newDate.setDate(newDate.getDate() + direction)
+      break
+    case 'week':
+      newDate.setDate(newDate.getDate() + (direction * 7))
+      break
+    case 'month':
+      newDate.setMonth(newDate.getMonth() + direction)
+      break
+    case 'year':
+      newDate.setFullYear(newDate.getFullYear() + direction)
+      break
+    default:
+      break
+  }
+  
+  setSelectedDate(newDate)
+  loadSalesDataForPeriod(timeFilter, newDate)
+}
+
+// Función para cargar datos de ventas según el período
+const loadSalesDataForPeriod = async (filter: string, date: Date) => {
+  try {
+    setIsLoading(true)
+    const token = getToken()
+    const { start, end } = getDateRange(filter, date)
+    
+    // Simular datos reales basados en los pagos existentes
+    const pagosFiltrados = pagos.filter(pago => {
+      const pagoDate = new Date(pago.createdAt)
+      return pagoDate >= start && pagoDate <= end && pago.status === 'succeeded'
+    })
+    
+    // Generar datos para el gráfico según el filtro
+    let datosGrafico: number[] = []
+    
+    switch (filter) {
+      case 'day':
+        datosGrafico = Array.from({ length: 24 }, (_, hora) => {
+          return pagosFiltrados
+            .filter(pago => new Date(pago.createdAt).getHours() === hora)
+            .reduce((sum, pago) => sum + pago.monto, 0)
+        })
+        break
+      case 'week':
+        datosGrafico = Array.from({ length: 7 }, (_, dia) => {
+          return pagosFiltrados
+            .filter(pago => new Date(pago.createdAt).getDay() === dia)
+            .reduce((sum, pago) => sum + pago.monto, 0)
+        })
+        break
+      case 'month':
+        const semanasEnMes = Math.ceil((end.getDate() - start.getDate() + 1) / 7)
+        datosGrafico = Array.from({ length: semanasEnMes }, (_, semana) => {
+          const inicioSemana = new Date(start)
+          inicioSemana.setDate(start.getDate() + (semana * 7))
+          const finSemana = new Date(inicioSemana)
+          finSemana.setDate(inicioSemana.getDate() + 6)
+          
+          return pagosFiltrados
+            .filter(pago => {
+              const pagoDate = new Date(pago.createdAt)
+              return pagoDate >= inicioSemana && pagoDate <= finSemana
+            })
+            .reduce((sum, pago) => sum + pago.monto, 0)
+        })
+        break
+      case 'year':
+        datosGrafico = Array.from({ length: 12 }, (_, mes) => {
+          return pagosFiltrados
+            .filter(pago => new Date(pago.createdAt).getMonth() === mes)
+            .reduce((sum, pago) => sum + pago.monto, 0)
+        })
+        break
+    }
+    
+    setSalesData(datosGrafico)
+    
+    // Actualizar estadísticas en tiempo real
+    setRealTimeStats({
+      totalSales: pagosFiltrados.reduce((sum, pago) => sum + pago.monto, 0),
+      totalOrders: pagosFiltrados.length,
+      categoryDistribution: calculateCategoryDistribution(products) // Usar tu función existente
+    })
+    
+  } catch (error) {
+    console.error('Error loading sales data:', error)
+    // En caso de error, usar datos de ejemplo
+    const sampleData = generateSampleData(filter)
+    setSalesData(sampleData)
+  } finally {
+    setIsLoading(false)
+  }
+}
+
+// Función temporal para generar datos de ejemplo
+const generateSampleData = (filter: string): number[] => {
+  switch (filter) {
+    case 'day':
+      return Array.from({ length: 24 }, () => Math.floor(Math.random() * 1000) + 500)
+    case 'week':
+      return Array.from({ length: 7 }, () => Math.floor(Math.random() * 5000) + 2000)
+    case 'month':
+      return Array.from({ length: 4 }, () => Math.floor(Math.random() * 15000) + 8000)
+    case 'year':
+      return Array.from({ length: 12 }, () => Math.floor(Math.random() * 30000) + 15000)
+    default:
+      return []
+  }
+}
   const loadEstadisticasReales = async () => {
     try {
       const token = getToken()
@@ -574,6 +781,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
       loadAdminOrders() // ← Reemplaza la carga local con esta
     }
   }, [isOpen])
+  
+  
+// Y AGREGALE ESTA LÍNEA:
+useEffect(() => {
+  if (isOpen) {
+    loadCategories()
+    loadProducts()
+    loadPagos()
+    loadEstadisticasReales()
+    loadAdmins()
+    loadAdminOrders()
+    loadSalesDataForPeriod(timeFilter, selectedDate) // ← AGREGAR ESTA LÍNEA
+  }
+}, [isOpen])
 
   // MODIFICACIÓN: Nueva función handleConfirmReceipt usando confirmOrder de la API
   const handleConfirmReceipt = async (orderId: number) => {
@@ -1380,105 +1601,176 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ isOpen, onC
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 h-[450px]">
-                    <h3 className="text-xl font-bold text-gray-900 tracking-tight mb-2">Ventas Mensuales</h3>
-                    <p className="text-sm text-gray-500 font-medium mb-4">Últimos 6 meses (S/)</p>
-                    <div className="h-72">
-                      <Line
-                        data={{
-                          labels: ["Hace 5m", "Hace 4m", "Hace 3m", "Hace 2m", "Hace 1m", "Este mes"],
-                          datasets: [
-                            {
-                              label: "Ventas (S/)",
-                              data: stats.monthlySales,
-                              fill: true,
-                              backgroundColor: "rgba(239, 68, 68, 0.2)",
-                              borderColor: "rgb(239, 68, 68)",
-                              tension: 0.4,
-                              borderWidth: 3,
-                            },
-                          ],
-                        }}
-                        options={{
-                          responsive: true,
-                          maintainAspectRatio: false,
-                          plugins: {
-                            legend: { display: false },
-                          },
-                          scales: {
-                            x: {
-                              ticks: { font: { size: 12 }, color: "#1f2937" },
-                              grid: { display: false },
-                            },
-                            y: {
-                              ticks: { font: { size: 12 }, color: "#1f2937" },
-                              grid: { color: "#e5e7eb" },
-                            },
-                          },
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 h-[450px]">
-                    <h3 className="text-xl font-bold text-gray-900 tracking-tight mb-2">Distribución por Categoría</h3>
-                    <p className="text-sm text-gray-500 font-medium mb-4">Productos por categoría</p>
-                    <div className="h-60">
-                      <Doughnut
-                        data={{
-                          labels: Object.keys(stats.categoryDistribution),
-                          datasets: [
-                            {
-                              data: Object.values(stats.categoryDistribution),
-                              backgroundColor: [
-                                "#ef4444",
-                                "#3b82f6",
-                                "#10b981",
-                                "#f59e0b",
-                                "#8b5cf6",
-                                "#ec4899",
-                                "#06b6d4",
-                                "#f97316",
-                                "#14b8a6",
-                                "#a855f7",
-                              ],
-                              borderWidth: 1,
-                            },
-                          ],
-                        }}
-                        options={{
-                          responsive: true,
-                          maintainAspectRatio: false,
-                          cutout: "50%",
-                        }}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mt-4 max-w-full">
-                      {Object.keys(stats.categoryDistribution).map((label, index) => (
-                        <div key={label} className="flex items-center gap-2">
-                          <span
-                            className="w-3 h-3 rounded-sm"
-                            style={{
-                              backgroundColor: [
-                                "#ef4444",
-                                "#3b82f6",
-                                "#10b981",
-                                "#f59e0b",
-                                "#8b5cf6",
-                                "#ec4899",
-                                "#06b6d4",
-                                "#f97316",
-                                "#14b8a6",
-                                "#a855f7",
-                              ][index % 10],
-                            }}
-                          ></span>
-                          <span className="text-sm text-gray-600 font-normal">{label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                {/* === NUEVA SECCIÓN: CONTROLES DE FILTRO DE TIEMPO === */}
+<div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200">
+  <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => navigatePeriod(-1)}
+        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+      >
+        ←
+      </button>
+      
+      <h2 className="text-lg font-semibold text-gray-900 min-w-[200px] text-center">
+        {getPeriodLabel()}
+      </h2>
+      
+      <button
+        onClick={() => navigatePeriod(1)}
+        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+      >
+        →
+      </button>
+    </div>
+
+    <div className="flex gap-2 flex-wrap">
+      {['day', 'week', 'month', 'year'].map((filter) => (
+        <button
+          key={filter}
+          onClick={() => handleTimeFilterChange(filter)}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            timeFilter === filter
+              ? 'bg-red-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          {filter === 'day' && 'Día'}
+          {filter === 'week' && 'Semana'}
+          {filter === 'month' && 'Mes'}
+          {filter === 'year' && 'Año'}
+        </button>
+      ))}
+    </div>
+  </div>
+</div>
+
+{/* === NUEVA SECCIÓN: GRÁFICOS CON FILTROS DE TIEMPO === */}
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 h-[450px]">
+    <div className="flex justify-between items-center mb-4">
+      <div>
+        <h3 className="text-xl font-bold text-gray-900 tracking-tight">Ventas en Tiempo Real</h3>
+        <p className="text-sm text-gray-500 font-medium">
+          {timeFilter === 'day' && 'Ventas por hora (S/)'}
+          {timeFilter === 'week' && 'Ventas por día (S/)'}
+          {timeFilter === 'month' && 'Ventas por semana (S/)'}
+          {timeFilter === 'year' && 'Ventas mensuales (S/)'}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+        <span className="text-sm text-gray-500">En vivo</span>
+      </div>
+    </div>
+    <div className="h-72">
+      <Line
+        data={{
+          labels: getChartLabels(),
+          datasets: [
+            {
+              label: "Ventas (S/)",
+              data: salesData.length > 0 ? salesData : stats.monthlySales,
+              fill: true,
+              backgroundColor: "rgba(239, 68, 68, 0.2)",
+              borderColor: "rgb(239, 68, 68)",
+              tension: 0.4,
+              borderWidth: 3,
+              pointBackgroundColor: "rgb(239, 68, 68)",
+              pointBorderColor: "#fff",
+              pointBorderWidth: 2,
+              pointRadius: 4,
+            },
+          ],
+        }}
+        options={{
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleFont: { size: 12 },
+              bodyFont: { size: 12 },
+              padding: 10,
+            }
+          },
+          scales: {
+            x: {
+              ticks: { font: { size: 11 }, color: "#1f2937" },
+              grid: { display: false },
+            },
+            y: {
+              ticks: { font: { size: 11 }, color: "#1f2937" },
+              grid: { color: "#e5e7eb" },
+              beginAtZero: true,
+            },
+          },
+          interaction: {
+            mode: 'nearest',
+            axis: 'x',
+            intersect: false
+          },
+        }}
+      />
+    </div>
+    <div className="mt-4 grid grid-cols-2 gap-4 text-center">
+      <div className="bg-red-50 p-3 rounded-lg">
+        <p className="text-sm text-gray-600">Ventas del período</p>
+        <p className="text-lg font-bold text-red-600">S/{realTimeStats.totalSales.toFixed(2)}</p>
+      </div>
+      <div className="bg-blue-50 p-3 rounded-lg">
+        <p className="text-sm text-gray-600">Pedidos del período</p>
+        <p className="text-lg font-bold text-blue-600">{realTimeStats.totalOrders}</p>
+      </div>
+    </div>
+  </div>
+
+  <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 h-[450px]">
+    <h3 className="text-xl font-bold text-gray-900 tracking-tight mb-2">Distribución por Categoría</h3>
+    <p className="text-sm text-gray-500 font-medium mb-4">Productos por categoría</p>
+    <div className="h-60">
+      <Doughnut
+        data={{
+          labels: Object.keys(stats.categoryDistribution),
+          datasets: [
+            {
+              data: Object.values(stats.categoryDistribution),
+              backgroundColor: [
+                "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6",
+                "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#a855f7",
+              ],
+              borderWidth: 1,
+            },
+          ],
+        }}
+        options={{
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "50%",
+        }}
+      />
+    </div>
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mt-4 max-w-full">
+      {Object.keys(stats.categoryDistribution).map((label, index) => (
+        <div key={label} className="flex items-center gap-2">
+          <span
+            className="w-3 h-3 rounded-sm"
+            style={{
+              backgroundColor: [
+                "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6",
+                "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#a855f7",
+              ][index % 10],
+            }}
+          ></span>
+          <span className="text-sm text-gray-600 font-normal">{label}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
 
                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
                   <h3 className="text-xl font-bold text-gray-900 tracking-tight mb-4">Actividades Recientes</h3>

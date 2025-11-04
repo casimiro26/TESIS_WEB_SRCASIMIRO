@@ -96,31 +96,6 @@ const normalizeProductToAPI = (product: Omit<Product, "id"> | Partial<Product>) 
   }
 }
 
-// Función para normalizar orden de API a frontend
-const normalizeOrderFromAPI = (apiOrder: any): Order => {
-  return {
-    id: apiOrder.id || apiOrder._id || Math.random(),
-    customer: {
-      name: apiOrder.customer?.name || apiOrder.user?.name || "Cliente",
-      email: apiOrder.customer?.email || apiOrder.user?.email || "",
-      phone: apiOrder.customer?.phone || apiOrder.user?.phone || "",
-      address: apiOrder.customer?.address || apiOrder.shippingAddress || "",
-      dni: apiOrder.customer?.dni || apiOrder.user?.dni || "",
-    },
-    items: apiOrder.items?.map((item: any) => ({
-      product: normalizeProductFromAPI(item.product || item),
-      quantity: item.quantity || 1,
-    })) || [],
-    date: apiOrder.createdAt ? new Date(apiOrder.createdAt).toLocaleDateString("es-PE") : new Date().toLocaleDateString("es-PE"),
-    total: apiOrder.totalAmount || apiOrder.total || 0,
-    hasReceipt: !!apiOrder.receiptUrl || apiOrder.paymentConfirmed || false,
-    receiptUrl: apiOrder.receiptUrl || null,
-    status: apiOrder.status || "pending",
-    paymentMethod: apiOrder.paymentMethod,
-    stripePaymentId: apiOrder.stripePaymentId,
-  }
-}
-
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -173,7 +148,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }
 
-  // Cargar órdenes como administrador
+  // Cargar órdenes como administrador - VERSIÓN MEJORADA
   const loadAdminOrders = async (): Promise<Order[]> => {
     try {
       setLoading(true)
@@ -198,7 +173,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       const apiData = await response.json()
-      const normalizedOrders = (apiData.orders || []).map(normalizeOrderFromAPI)
+      
+      // Tu API devuelve las órdenes formateadas correctamente
+      const normalizedOrders = (apiData.orders || []).map((order: any) => ({
+        id: order.id, // Tu API ya usa 'id' en lugar de 'id_pedido' en la respuesta formateada
+        customer: order.customer,
+        date: order.date,
+        total: order.total,
+        status: order.status,
+        items: order.items.map((item: any) => ({
+          product: {
+            id: item.product.id,
+            name: item.product.name,
+            price: item.product.price,
+            image: item.product.image
+          },
+          quantity: item.quantity
+        })),
+        hasReceipt: order.hasReceipt,
+        receiptUrl: order.receiptUrl,
+        paymentMethod: order.paymentMethod
+      }))
 
       // Actualizar estado local de órdenes
       setOrders(normalizedOrders)
@@ -213,7 +208,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }
 
-  // Cargar órdenes del usuario
+  // Cargar órdenes del usuario - VERSIÓN MEJORADA
   const loadUserOrders = async (): Promise<Order[]> => {
     try {
       setLoading(true)
@@ -238,7 +233,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       const apiData = await response.json()
-      const normalizedOrders = (apiData.orders || apiData.pedidos || []).map(normalizeOrderFromAPI)
+      
+      // Tu API devuelve las órdenes formateadas correctamente
+      const normalizedOrders = (apiData.orders || []).map((order: any) => ({
+        id: order.id,
+        customer: order.customer,
+        date: order.date,
+        total: order.total,
+        status: order.status,
+        items: order.items.map((item: any) => ({
+          product: {
+            id: item.product.id,
+            name: item.product.name,
+            price: item.product.price,
+            image: item.product.image
+          },
+          quantity: item.quantity
+        })),
+        hasReceipt: order.hasReceipt,
+        receiptUrl: order.receiptUrl,
+        paymentMethod: order.paymentMethod
+      }))
 
       // Actualizar estado local de órdenes del usuario
       setUserOrders(normalizedOrders)
@@ -253,7 +268,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }
 
-  // Confirmar orden (para admin) - SOLUCIÓN TEMPORAL CON FALLBACK
+  // Confirmar orden (para admin) - VERSIÓN CORREGIDA
   const confirmOrder = async (orderId: number): Promise<boolean> => {
     try {
       setLoading(true)
@@ -264,9 +279,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error("No authentication token found. Please log in.")
       }
 
-      // Intentar con el endpoint original
+      console.log("🔄 Confirmando orden en la API...", orderId)
+
+      // USAR PUT EN LUGAR DE POST (como especifica tu API)
       const response = await fetch(`https://api-web-egdy.onrender.com/api/admin/orders/${orderId}/confirm`, {
-        method: "POST",
+        method: "PUT", // ✅ CAMBIO IMPORTANTE: POST → PUT
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -274,18 +291,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
 
       if (response.ok) {
-        // Éxito - actualizar estado
+        const responseData = await response.json()
+        console.log("✅ Orden confirmada exitosamente:", responseData.mensaje)
+        
+        // Actualizar estado local
         setOrders(prev => prev.map(order => 
-          order.id === orderId ? { ...order, status: "confirmed", hasReceipt: true } : order
+          order.id === orderId ? { 
+            ...order, 
+            status: "confirmed", 
+            hasReceipt: true 
+          } : order
         ))
-        console.log("✅ Orden confirmada en la API")
-        return true
-      } else if (response.status === 404) {
-        // Endpoint no existe - mantener funcionalidad local (COMPATIBILIDAD)
-        console.warn("⚠️ Endpoint no encontrado, usando confirmación local")
-        setOrders(prev => prev.map(order => 
-          order.id === orderId ? { ...order, status: "confirmed", hasReceipt: true } : order
-        ))
+
         return true
       } else {
         const errorData = await response.json().catch(() => ({ mensaje: "Failed to confirm order" }))
@@ -293,14 +310,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
     } catch (err: any) {
-      console.error("Error confirming order:", err)
-      
-      // En caso de error, igual actualizar localmente para que no se rompa la UI
-      setOrders(prev => prev.map(order => 
-        order.id === orderId ? { ...order, status: "confirmed", hasReceipt: true } : order
-      ))
-      
-      setError(err.message || "Failed to confirm order")
+      console.error("❌ Error confirmando orden:", err)
+      setError(err.message || "No se pudo confirmar la orden en la base de datos")
       return false
     } finally {
       setLoading(false)
