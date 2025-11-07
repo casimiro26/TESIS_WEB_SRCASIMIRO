@@ -5,33 +5,21 @@ import { useState, useEffect } from "react"
 import { X, Send, MessageCircle, Eye, Heart, ShoppingCart, Bot, Trash2, Plus, Minus } from "lucide-react"
 import { useCart } from "../context/CartContext"
 import { useAuth } from "../context/AuthContext"
-import { fetchProducts, fetchCategories } from "../data/products" // Cambiado a fetch dinámico
-import { CheckoutModal } from "./CheckoutModal" // Import CheckoutModal component
-import { AuthModal } from "./AuthModal" // Import AuthModal component
+import { fetchProducts, fetchCategories } from "../data/products"
+import { CheckoutModal } from "./CheckoutModal"
+import { AuthModal } from "./AuthModal"
 
-const API_BASE_URL = "http://localhost:3000" // Ajusta si deployas el chatbot API (o usa tu API principal si integras)
+const API_BASE_URL = "http://localhost:3000"
 
 export const Footer: React.FC = () => {
   const { favorites, items, addToCart, removeFromCart, updateQuantity } = useCart()
-  const { user, token } = useAuth() // Asume que AuthContext expone token
+  const { user, token } = useAuth()
 
   const paymentMethods = [
-    { name: "Visa", icon: "../assets/images/visa.png", color: "text-blue-600" },
-    {
-      name: "bcp",
-      icon: "../assets/images/bcp.png",
-      color: "text-red-600",
-    },
-    {
-      name: "PayPal",
-      icon: "../assets/images/peypal.png",
-      color: "text-blue-500",
-    },
-    {
-      name: "interbank",
-      icon: "../assets/images/interb.png",
-      color: "text-gray-800",
-    },
+    { name: "yape", icon: "../assets/images/yape.png", color: "text-blue-600" },
+    { name: "bcp", icon: "../assets/images/bcp.png", color: "text-red-600" },
+    { name: "visa", icon: "../assets/images/visa.png", color: "text-blue-500" },
+    { name: "interbank", icon: "../assets/images/interb.png", color: "text-gray-800" },
   ]
 
   const [isChatOpen, setIsChatOpen] = useState(false)
@@ -40,38 +28,40 @@ export const Footer: React.FC = () => {
   const [activeView, setActiveView] = useState<"chat" | "products" | "favorites" | "cart">("chat")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [dynamicProducts, setDynamicProducts] = useState<any[]>([]) // Estado para productos de DB
-  const [dynamicCategories, setDynamicCategories] = useState<string[]>([]) // Estado para categorías de DB
-  const [selectedCategory, setSelectedCategory] = useState<string>("Todas") // Para filtro
-  const [productsLoading, setProductsLoading] = useState(false) // Loading para products
-  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set()) // Para selección múltiple en products
-  const [cartTotal, setCartTotal] = useState(0) // Total del carrito
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false) // Add state for checkout modal
+  const [dynamicProducts, setDynamicProducts] = useState<any[]>([])
+  const [dynamicCategories, setDynamicCategories] = useState<string[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>("Todas")
+  const [productsLoading, setProductsLoading] = useState(false)
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
+  const [cartTotal, setCartTotal] = useState(0)
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [authType, setAuthType] = useState<"login" | "register">("login")
+  const [chatImages, setChatImages] = useState<string[]>([])
 
   interface Message {
     id: number
     text: string
     isBot: boolean
     timestamp: Date
+    images?: string[]
   }
 
   // Fetch bienvenida inicial al abrir chat
   useEffect(() => {
-    if (isChatOpen) {
+    if (isChatOpen && messages.length === 0) {
       fetchBienvenida()
     }
   }, [isChatOpen])
 
-  // Fetch productos y categorías dinámicos cuando se abre products tab
+  // Fetch productos y categorías dinámicos
   useEffect(() => {
-    if (activeView === "products") {
+    if (activeView === "products" && dynamicProducts.length === 0) {
       loadProductsAndCategories()
     }
   }, [activeView, token])
 
-  // Calcular total del carrito cuando cambian items
+  // Calcular total del carrito
   useEffect(() => {
     const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
     setCartTotal(total)
@@ -79,20 +69,15 @@ export const Footer: React.FC = () => {
 
   const loadProductsAndCategories = async () => {
     setProductsLoading(true)
-    setSelectedProducts(new Set()) // Reset selección
     try {
-      // Fetch paralelo para eficiencia
       const [productsRes, categoriesRes] = await Promise.all([
         fetchProducts(token || undefined),
         fetchCategories(token || undefined),
       ])
       setDynamicProducts(productsRes)
-      setDynamicCategories(["Todas", ...categoriesRes]) // Agrega "Todas" para filtro all
-      console.log("Productos de DB cargados:", productsRes) // Debug
-      console.log("Categorías de DB cargadas:", categoriesRes) // Debug
+      setDynamicCategories(["Todas", ...categoriesRes])
     } catch (err) {
       console.error("Error loading products/categories:", err)
-      // No set error aquí, ya que fallback maneja
     } finally {
       setProductsLoading(false)
     }
@@ -100,12 +85,7 @@ export const Footer: React.FC = () => {
 
   const fetchBienvenida = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/bienvenida`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      const response = await fetch(`${API_BASE_URL}/bienvenida`)
       if (response.ok) {
         const { response: botResponse } = await response.json()
         setMessages([
@@ -117,11 +97,10 @@ export const Footer: React.FC = () => {
           },
         ])
       } else {
-        // Fallback si API falla
         setMessages([
           {
             id: 1,
-            text: "¡Bienvenido a Sr. Robot! Soy tu asistente virtual, listo para brindarte toda la información que necesites sobre nuestros productos tecnológicos. Consulta sobre laptops, teclados, cámaras de seguridad, accesorios y más.",
+            text: "¡Hola! Soy Sr. Robot, tu asistente virtual de la tienda tecnológica en Huánuco. 😊 ¿En qué puedo ayudarte hoy? Puedo mostrarte productos, imágenes, precios o información de garantías.",
             isBot: true,
             timestamp: new Date(),
           },
@@ -129,11 +108,10 @@ export const Footer: React.FC = () => {
       }
     } catch (err) {
       console.error("Error fetching bienvenida:", err)
-      // Fallback mejorado
       setMessages([
         {
           id: 1,
-          text: "¡Bienvenido a Sr. Robot! Soy tu asistente virtual, listo para brindarte toda la información que necesites sobre nuestros productos tecnológicos. Consulta sobre laptops, teclados, cámaras de seguridad, accesorios y más.",
+          text: "¡Hola! Soy Sr. Robot, tu asistente virtual de la tienda tecnológica en Huánuco. 😊 ¿En qué puedo ayudarte hoy? Puedo mostrarte productos, imágenes, precios o información de garantías.",
           isBot: true,
           timestamp: new Date(),
         },
@@ -145,7 +123,7 @@ export const Footer: React.FC = () => {
     if (!inputMessage.trim()) return
 
     const userMessage: Message = {
-      id: messages.length + 1,
+      id: Date.now(),
       text: inputMessage,
       isBot: false,
       timestamp: new Date(),
@@ -154,6 +132,7 @@ export const Footer: React.FC = () => {
     setMessages((prev) => [...prev, userMessage])
     setIsLoading(true)
     setError(null)
+    setChatImages([])
 
     try {
       const response = await fetch(`${API_BASE_URL}/chat`, {
@@ -165,14 +144,18 @@ export const Footer: React.FC = () => {
       })
 
       if (response.ok) {
-        const { response: botResponse } = await response.json()
+        const data = await response.json()
         const botMessage: Message = {
-          id: messages.length + 2,
-          text: botResponse,
+          id: Date.now() + 1,
+          text: data.response,
           isBot: true,
           timestamp: new Date(),
+          images: data.images || []
         }
         setMessages((prev) => [...prev, botMessage])
+        if (data.images && data.images.length > 0) {
+          setChatImages(data.images)
+        }
       } else {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
@@ -180,7 +163,7 @@ export const Footer: React.FC = () => {
       console.error("Error en chat API:", err)
       setError("Lo siento, hubo un error al procesar tu mensaje. Intenta de nuevo o contacta por WhatsApp.")
       const errorMessage: Message = {
-        id: messages.length + 2,
+        id: Date.now() + 1,
         text: "Lo siento, no pude procesar tu consulta en este momento. 😔 ¿Puedes reformularla o prefieres chatear por WhatsApp?",
         isBot: true,
         timestamp: new Date(),
@@ -192,12 +175,10 @@ export const Footer: React.FC = () => {
     }
   }
 
-  // Filtrar productos por categoría seleccionada
   const filteredProducts = dynamicProducts.filter(
     (product) => selectedCategory === "Todas" || product.category === selectedCategory,
   )
 
-  // Manejar selección de producto
   const toggleProductSelection = (productId: string) => {
     const newSelected = new Set(selectedProducts)
     if (newSelected.has(productId)) {
@@ -208,34 +189,36 @@ export const Footer: React.FC = () => {
     setSelectedProducts(newSelected)
   }
 
-  // Agregar seleccionados al carrito
   const addSelectedToCart = () => {
     if (selectedProducts.size === 0) return
     selectedProducts.forEach((productId) => {
       const product = dynamicProducts.find((p) => p.id === productId)
       if (product) {
-        addToCart({ ...product, quantity: 1 }) // Asume que addToCart acepta el producto con quantity
+        addToCart({ 
+          ...product, 
+          quantity: 1,
+          id: product.id || productId,
+          name: product.nombre || product.name,
+          price: product.precio || product.price,
+          image: product.imagen || product.image
+        })
       }
     })
-    setSelectedProducts(new Set()) // Reset selección
-    // Opcional: Mostrar mensaje de éxito en chat o notificación
+    setSelectedProducts(new Set())
+    setActiveView("cart")
   }
 
   const proceedToCheckout = () => {
     if (items.length === 0) return
 
-    // Check if user is authenticated
     if (!user) {
-      // User not authenticated, open auth modal
       setAuthType("login")
       setIsAuthOpen(true)
     } else {
-      // User is authenticated, open checkout modal
       setIsCheckoutOpen(true)
     }
   }
 
-  // Actualizar cantidad en carrito
   const handleQuantityChange = (itemId: string, delta: number) => {
     const item = items.find((i) => i.id === itemId)
     if (item) {
@@ -244,18 +227,13 @@ export const Footer: React.FC = () => {
     }
   }
 
-  // Remover del carrito
   const handleRemoveFromCart = (itemId: string) => {
     removeFromCart(itemId)
   }
 
   const getCategoryNames = (): string[] => {
     return dynamicCategories.map((cat) => {
-      // Handle both string and object formats
-      if (typeof cat === "string") {
-        return cat
-      }
-      // If it's an object, extract the name property
+      if (typeof cat === "string") return cat
       return cat.nombre || cat.name || String(cat)
     })
   }
@@ -271,14 +249,21 @@ export const Footer: React.FC = () => {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <img src="../assets/images/sr. r.png" alt="Sr. Robot Logo" className="h-10 w-10 animate-pulse" />
+                <img 
+                  src="../assets/images/sr. r.png" 
+                  alt="Sr. Robot Logo" 
+                  className="h-10 w-10 animate-pulse" 
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiByeD0iOCIgZmlsbD0iI0RDNTE0RiIvPgo8dGV4dCB4PSIyMCIgeT0iMjUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNSPC90ZXh0Pgo8L3N2Zz4K"
+                  }}
+                />
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
               </div>
               <div className="flex items-center">
                 <h2 className="text-2xl font-bold text-red-500 animate-bounce">Sr. Robot</h2>
               </div>
             </div>
-            <p className="text-sm text-gray-400 animate-fadeIn">
+            <p className="text-sm text-gray-400">
               Tu tienda de confianza para accesorios tecnológicos de última generación. Calidad garantizada y precios
               competitivos en soles peruanos (S/.).
             </p>
@@ -385,13 +370,15 @@ export const Footer: React.FC = () => {
               <div
                 key={method.name}
                 className="flex flex-col items-center gap-2 min-w-fit group cursor-pointer"
-                style={{ animationDelay: `${index * 0.1}s` }}
               >
                 <div className="p-4 bg-gray-800 hover:bg-gray-700 rounded-xl transition-all duration-300 group-hover:scale-110 shadow-lg">
                   <img
-                    src={method.icon || "/placeholder.svg"}
+                    src={method.icon}
                     alt={`${method.name} Logo`}
                     className={`w-10 h-10 ${method.color} group-hover:scale-110 transition-transform object-contain`}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiByeD0iOCIgZmlsbD0iIzM3NDE1MSIvPgo8dGV4dCB4PSIyMCIgeT0iMjUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPnttZXRob2QubmFtZX08L3RleHQ+Cjwvc3ZnPgo="
+                    }}
                   />
                 </div>
                 <span className="text-xs text-gray-400 group-hover:text-white transition-colors">{method.name}</span>
@@ -449,7 +436,7 @@ export const Footer: React.FC = () => {
 
           {/* Chat Window */}
           {isChatOpen && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-96 h-[30rem] flex flex-col overflow-hidden mt-3">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-96 h-[32rem] flex flex-col overflow-hidden mt-3">
               {/* Header */}
               <div className="bg-red-500 text-white p-4 flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -464,7 +451,7 @@ export const Footer: React.FC = () => {
                     href="https://wa.me/51975167294"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-1 hover:bg-green-600 rounded transition-colors drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]"
+                    className="p-1 hover:bg-green-600 rounded transition-colors"
                     title="Ir a WhatsApp"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -473,7 +460,10 @@ export const Footer: React.FC = () => {
                     </svg>
                   </a>
                   <button
-                    onClick={() => setIsChatOpen(false)}
+                    onClick={() => {
+                      setIsChatOpen(false)
+                      setChatImages([])
+                    }}
                     className="p-1 hover:bg-red-600 rounded transition-colors"
                   >
                     <X className="w-4 h-4" />
@@ -523,6 +513,21 @@ export const Footer: React.FC = () => {
                           }`}
                         >
                           {message.text}
+                          {message.images && message.images.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {message.images.map((img, index) => (
+                                <img
+                                  key={index}
+                                  src={img}
+                                  alt={`Imagen del producto ${index + 1}`}
+                                  className="w-full h-auto rounded-lg border border-gray-200"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none'
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -545,7 +550,8 @@ export const Footer: React.FC = () => {
 
                 {activeView === "products" && (
                   <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-900 dark:text-white">Productos Destacados</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">Productos Disponibles</h4>
+                    
                     {/* Filtro por categoría */}
                     <div className="flex flex-col space-y-2">
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -563,14 +569,18 @@ export const Footer: React.FC = () => {
                         ))}
                       </select>
                     </div>
+
                     {/* Botón para agregar seleccionados */}
-                    <button
-                      onClick={addSelectedToCart}
-                      disabled={selectedProducts.size === 0 || productsLoading}
-                      className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white py-2 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
-                    >
-                      Agregar {selectedProducts.size} seleccionado{selectedProducts.size !== 1 ? "s" : ""} al carrito
-                    </button>
+                    {selectedProducts.size > 0 && (
+                      <button
+                        onClick={addSelectedToCart}
+                        disabled={productsLoading}
+                        className="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-medium transition-colors"
+                      >
+                        Agregar {selectedProducts.size} seleccionado{selectedProducts.size !== 1 ? "s" : ""} al carrito
+                      </button>
+                    )}
+
                     {productsLoading ? (
                       <p className="text-center text-gray-500 dark:text-gray-400 py-8">Cargando productos...</p>
                     ) : filteredProducts.length === 0 ? (
@@ -581,7 +591,7 @@ export const Footer: React.FC = () => {
                       filteredProducts.slice(0, 6).map((product) => (
                         <div
                           key={product.id}
-                          className="flex items-start gap-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                          className="flex items-start gap-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                         >
                           <input
                             type="checkbox"
@@ -590,14 +600,23 @@ export const Footer: React.FC = () => {
                             className="mt-1 h-4 w-4 text-red-600 focus:ring-red-500 rounded"
                           />
                           <img
-                            src={product.image || "/placeholder.svg"}
-                            alt={product.name}
+                            src={product.imagen || product.image || "/placeholder.svg"}
+                            alt={product.nombre || product.name}
                             className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yOCAxOUwyOC4wMDEgMjlNMjAgMjRIMzZNMzYgMjRMMzEgMTlNMzYgMjRMMzEgMjkiIHN0cm9rZT0iIzlDQTVCQyIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+Cg=="
+                            }}
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.name}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{product.category}</p>
-                            <p className="text-sm font-bold text-red-600">S/. {product.price}</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {product.nombre || product.name}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {product.categoria || product.category}
+                            </p>
+                            <p className="text-sm font-bold text-red-600">
+                              S/. {product.precio || product.price}
+                            </p>
                           </div>
                         </div>
                       ))
@@ -697,7 +716,7 @@ export const Footer: React.FC = () => {
                 )}
               </div>
 
-              {/* Input Area */}
+              {/* Input Area - Solo para chat */}
               {activeView === "chat" && (
                 <div className="p-3 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex space-x-2">
@@ -718,9 +737,6 @@ export const Footer: React.FC = () => {
                       <Send className="w-4 h-4" />
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-                    Te conectaremos por WhatsApp para atención personalizada
-                  </p>
                 </div>
               )}
             </div>
